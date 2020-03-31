@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Log File
+log.txt
+test_output.txt
