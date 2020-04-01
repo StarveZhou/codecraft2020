@@ -62,6 +62,7 @@ vector<vector<int>> read_input() {
         char comma;
         int x, y, value;
         getline(infile, line);
+        if (line.size() == 0) break;
         stringstream sin(line);
         sin >> x >> comma >> y >> comma >> value;
 
