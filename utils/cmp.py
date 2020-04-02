@@ -1,8 +1,10 @@
 import sys
 
+
 def error_occur(str):
     print(str)
     exit(0)
+
 
 def read_from_file(path):
     data = []
@@ -14,8 +16,9 @@ def read_from_file(path):
         for line in lines:
             data.append(list(map(int, line.split(','))))
     if size != len(data):
-        error_occur("error occur from {}, lines require {}, actual {}".format(path, size, len(data)))        
+        error_occur("error occur from {}, lines require {}, actual {}".format(path, size, len(data)))
     return data
+
 
 def compare(std, res):
     std_data = read_from_file(std)
@@ -26,12 +29,13 @@ def compare(std, res):
         std_line = std_data[i]
         res_line = res_data[i]
         if len(std_line) != len(res_line):
-            error_occur("line: {}, diff number of items, std: {}, actual: {}".format(i+1, len(std_line), len(res_line)))
+            error_occur(
+                "line: {}, diff number of items, std: {}, actual: {}".format(i + 1, len(std_line), len(res_line)))
         for j in range(len(std_line)):
             if std_line[j] != res_line[j]:
-                error_occur("line: {}, cow: {}, std: {}, actual: {}".format(i+1, j+1, std_line[j], res_line[j]))
+                error_occur("line: {}, cow: {}, std: {}, actual: {}".format(i + 1, j + 1, std_line[j], res_line[j]))
     print("success!")
-    
+
 
 if __name__ == '__main__':
     args = sys.argv
@@ -42,4 +46,3 @@ if __name__ == '__main__':
     if len(args) >= 3:
         result_path = args[2]
     compare(result_path, output_path)
-    
