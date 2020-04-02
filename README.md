@@ -4,13 +4,13 @@
 
 ## 使用Makefile
 
-`make F=main main cmp` 编译之后检验结果
+`make F=main.cc main cmp` 编译之后检验结果
 
 ### 编译并运行代码
 
 `make F=xxx`
 
-`xxx`为代码的文件名，代码文件为`xxx.cc`
+`xxx`为代码的文件名，代码文件为`xxx`
 
 更改宏`INPUT_PATH`来更改输入的文件
 结果输出到`test_output.txt`文件中
