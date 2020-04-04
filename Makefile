@@ -1,6 +1,7 @@
-main:
-	g++ src/$(F) -o test -lpthread -O3
+main: compile
 	./test
+compile:
+	g++ src/${F} -o test -pthread -O3 -D TEST
 cmp:
 	python utils/cmp.py test_output.txt resources/result.txt
 cmp-pre:

@@ -3,10 +3,9 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
+#include <unordered_map>
 
 //------------------ MACRO ---------------------
-
-#define TEST
 
 #ifdef TEST
 
@@ -21,7 +20,8 @@ clock_t start_time, end_time;
 
 
 // 输入输出路径
-#define INPUT_PATH  "resources/test_data.txt"
+// #define INPUT_PATH  "resources/test_data.txt"
+#define INPUT_PATH  "gen_data.txt"
 #define OUTPUT_PATH "test_output.txt"
 
 #else
@@ -40,7 +40,7 @@ clock_t start_time, end_time;
 
 char buffer[MAX_LINE * MAX_FOR_EACH_LINE];
 int  data_num = 0;
-int  data[MAX_LINE * 3];
+int  data[MAX_LINE][3];
 
 void read_input();
 void write_output();
@@ -52,6 +52,7 @@ int main() {
 #endif
     
     read_input();
+    say_out("data size: %d", data_num);
 
 #ifdef TEST
     end_time = clock();
@@ -71,15 +72,16 @@ void read_input() {
 
     // 解析
     int x = 0;
+    int* data_ptr = &data[0][0];
     for (int i=0; i<size; ++i) {
         if (buffer[i] == ',' || buffer[i] == '\n') {
-            data[data_num ++] = x;
+            *data_ptr = x; data_ptr ++;
             x = 0;
         } else {
             x = x * 10 + buffer[i] - '0';
         }
     }
-    data_num /= 3;
+    data_num = (data_ptr - &data[0][0]) / 3;
 }
 
 void write_output() {

@@ -8,8 +8,8 @@
 
 using namespace std;
 
-#define N         28000
-#define M         280000
+#define N         2800
+#define M         28000
 
 unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 mt19937 rand_num(seed);

@@ -36,3 +36,4 @@ log.txt
 test_output.txt
 .vscode/
 gen_data.txt
+resources/data*

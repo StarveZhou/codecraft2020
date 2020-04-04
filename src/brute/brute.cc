@@ -13,13 +13,12 @@ using namespace std;
 
 // ----------------------------- MACRO ---------------------------------------------
 
-#define TEST
-
 #ifdef TEST
 
 #include <time.h>
 clock_t start_time, end_time;
-#define INPUT_PATH "resources/test_data.txt"
+// #define INPUT_PATH "resources/test_data.txt"
+#define INPUT_PATH "gen_data.txt"
 // #define INPUT_PATH "resources/pre_test.txt"
 #define OUTPUT_PATH "test_output.txt"
 
