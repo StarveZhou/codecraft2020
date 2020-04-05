@@ -18,8 +18,9 @@ clock_t start_time, end_time;
 
 // 日志输出
 #include <stdio.h>
-#define say_out(...)     printf(__VA_ARGS__);putchar('\n');fflush(__acrt_iob_func(1))
-
+// #define say_out(...)     printf(__VA_ARGS__);putchar('\n');fflush(__acrt_iob_func(1))
+#include <iostream>
+using namespace std;
 
 // 输入输出路径
 // #define INPUT_PATH  "resources/data1.txt"
@@ -54,7 +55,7 @@ int  data[MAX_EDGE][3];
 
 // for normalize and denormalize, disordered
 int unique_node_num = 0;
-std::map<int, int> normalize_v;
+std::unordered_map<int, int> normalize_v;
 int denormalize_v[MAX_NODE];
 
 // ptr 0 for end pointer, so edge ptr begins from 1
@@ -108,60 +109,52 @@ int main() {
 #endif
     
     read_input();
-    say_out("read: %d", data_num);
+    cout << "read: " << endl << flush;
     normalize();
-    say_out("unique: %d", unique_node_num);
+    cout << "unique: " << unique_node_num << endl << flush;
     shortest_path();
-    say_out("shortest path");
+    cout << "shortest path" << endl << flush;
     search();
-    say_out("search: %d", answer_num);
+    cout << "search: " << answer_num << endl << flush;
     sort_answer();
-    say_out("sort");
+    cout << "sort" << endl << flush;
     create_writer_fd();
-    say_out("create writer fd");
+    cout << "create writer fd" << endl << flush;
     deserialize();
-    say_out("deserialize: %d", buffer_index);
+    cout << "finish" << endl << endl;
     
 
 #ifdef TEST
     end_time = clock();
-    say_out("running: %.6lf", ((double)(end_time - start_time) / PER_SEC));
+    cout.precision(6);
+    cout << "running: " << ((double)(end_time - start_time) / PER_SEC) << "s" << endl << flush;
 #endif
     return 0;
 }
 
 //------------------ FBODY ---------------------
 
-std::map<int, int>::iterator n_it;
-inline void normalize_for_one_item(int& u) {
-    say_out("item: %d", u);
-    n_it = normalize_v.find(u);
-    say_out("what?");
-    if (n_it == normalize_v.end()) {
-        say_out("A");
-        normalize_v[u] = unique_node_num;
-        denormalize_v[unique_node_num] = u;
-        u = unique_node_num;
-        unique_node_num ++;
-    } else {
-        say_out("B");
-        u = n_it->second;
+void do_normalize() {
+    int u;
+    for (int i=0; i<data_num; ++i) {
+        for (int j=0; j<2; ++j) {
+            u = data[i][j];
+            if (normalize_v.find(u) == normalize_v.end()) {
+                normalize_v[u] = unique_node_num;
+                denormalize_v[unique_node_num ++] = u;
+            }
+        }
     }
-    say_out("out: %d", u);
 }
 
 // todo can this function merges with reader?
 void normalize() {
-    int u, v, ptr;
+    do_normalize();
+    int u, v, ptr;    
     for (int i=0; i<data_num; ++i) {
         u = data[i][0]; v = data[i][1];
-        say_out("-u,v: %d, %d, %d", u, v, i);
-
-        normalize_for_one_item(u);
-        normalize_for_one_item(v);
-
-        say_out("*u,v: %d, %d, %d", u, v, i);
-
+        u = normalize_v[u];
+        v = normalize_v[v];
         edge_v[v_ptr_num] = v;
         edge_ptr[v_ptr_num] = edge_header[u];
         edge_header[u] = v_ptr_num ++;
@@ -275,7 +268,7 @@ inline void deserialize_int(int x) {
     }
     if (buffer_index >= max_available) {
         write(writer_fd, buffer, buffer_index);
-        say_out("write buffer: %d", buffer_index);
+        cout << "write buffer: " << buffer_index << endl << flush;
         buffer_index = 0;
     }
 }

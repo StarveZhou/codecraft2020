@@ -3,8 +3,6 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
-#include <unordered_map>
-
 //------------------ MACRO ---------------------
 
 #ifdef TEST
