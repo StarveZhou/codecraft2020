@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <assert.h>
+#include <math.h>
 
 #include <map>
 
@@ -24,11 +25,11 @@ clock_t start_time, end_time;
 using namespace std;
 
 // 输入输出路径
-// #define INPUT_PATH  "resources/data1.txt"
+#define INPUT_PATH  "resources/data1.txt"
 // #define INPUT_PATH  "gen_data.txt"
 // #define INPUT_PATH  "resources/test_data.txt"
 // #define OUTPUT_PATH "test_output.txt"
-#define INPUT_PATH   "resources/pre_test.txt"
+// #define INPUT_PATH   "resources/pre_test.txt"
 #define OUTPUT_PATH  "search_output.txt"
 
 #else
@@ -146,13 +147,11 @@ short sp_matrix[MAX_NODE][MAX_NODE];
 int sp_visit[MAX_NODE];
 int sp_queue[MAX_NODE];
 
-
 bool search_visit[MAX_NODE];
 int search_path[7];
 int search_path_num = 0;
 int answers[MAX_ANSWER][7];
 int answers_length[MAX_ANSWER];
-int answers_min_id[MAX_ANSWER];
 int answer_num = 0;
 
 int sorted_index[MAX_ANSWER];
@@ -169,6 +168,8 @@ void create_writer_fd();
 void normalize();
 
 void shortest_path();
+
+void calc_log();
 
 // use search method of Jiayu.Zhou
 void search();
@@ -189,6 +190,8 @@ int main() {
     cout << "unique: " << unique_node_num << endl << flush;
     shortest_path();
     cout << "shortest path" << endl << flush;
+    calc_log();
+    cout << "calc log" << endl << flush;
     search();
     cout << "search: " << answer_num << endl << flush;
     // for (int i=0; i<answer_num; ++i) {
@@ -273,11 +276,12 @@ void shortest_path() {
     }
 }
 
+
 inline void extract_answer(int min_id) {
     answers_length[answer_num] = search_path_num;
-    answers_min_id[answer_num] = min_id;
-    for (int i=0; i<search_path_num; ++i) {
-        answers[answer_num][i] = denormalize_v[search_path[i]];
+    for (int i=0, j=min_id; i<search_path_num; ++i) {
+        answers[answer_num][i] = denormalize_v[search_path[j]];
+        j ++; if (j == search_path_num) j = 0;
     }
     answer_num ++;
 }
@@ -325,13 +329,10 @@ void search() {
 bool compare_answer(int i, int j) {
     // say_out("compare i, j: %d, %d", i, j);
     if (answers_length[i] != answers_length[j]) return answers_length[i] < answers_length[j];
-    int x = answers_min_id[i], y = answers_min_id[j], len = answers_length[i];
-    for (int l=0; l<len; ++l, x=(x+1)%len, y=(y+1)%len) {
-        if (answers[i][x] != answers[j][y]) {
-            return answers[i][x] < answers[j][y];
-        }
+    for (int x=0; x<answers_length[i]; ++x) {
+        if (answers[i][x] != answers[j][x]) return answers[i][x] < answers[j][x];
     }
-    return true;
+    return false;
 }
 
 void sort_answer() {
@@ -355,7 +356,7 @@ inline void deserialize_int(int x) {
     if (buffer_index >= max_available) {
         int ret_size = write(writer_fd, buffer, buffer_index);
         cout << "write buffer: " << ret_size << ", " << buffer_index << endl << flush;
-        // assert(ret_size == buffer_index);
+        assert(ret_size == buffer_index);
         buffer_index = 0;
     }
 }
@@ -368,10 +369,8 @@ void deserialize() {
     for (int i=0; i<answer_num; ++i) {
         path = answers[sorted_index[i]];
         len = answers_length[sorted_index[i]];
-        x = answers_min_id[sorted_index[i]];
         for (int j=0; j<len; ++j) {
-            deserialize_int(path[x]);
-            x ++; if (x >= len) x = 0;
+            deserialize_int(path[j]);
             if (j == len-1) {
                 buffer[buffer_index ++] = '\n';
             } else {
@@ -382,7 +381,7 @@ void deserialize() {
     if (buffer_index > 0) {
         int ret_size = write(writer_fd, buffer, buffer_index);
         cout << "write buffer: " << ret_size << ", " << buffer_index << endl << flush;
-        // assert(ret_size == buffer_index);
+        assert(ret_size == buffer_index);
         buffer_index = 0;
     }
     // buffer[buffer_index-1] = EOF;
