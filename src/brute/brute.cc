@@ -18,9 +18,11 @@ using namespace std;
 #include <time.h>
 clock_t start_time, end_time;
 // #define INPUT_PATH "resources/test_data.txt"
-#define INPUT_PATH "gen_data.txt"
+// #define INPUT_PATH "gen_data.txt"
 // #define INPUT_PATH "resources/pre_test.txt"
-#define OUTPUT_PATH "test_output.txt"
+#define INPUT_PATH  "resources/data1.txt"
+// #define OUTPUT_PATH "test_output.txt"
+#define OUTPUT_PATH "brute_result.txt"
 
 #else
 
@@ -57,6 +59,12 @@ int main() {
     
     vector<vector<int>> data = read_input();
     vector<vector<int>> ret = solve(data);
+#ifdef TEST
+    end_time = clock();
+    cout << "seaching: " << ((double)(end_time - start_time)) / CLOCKS_PER_SEC << "s" << endl;
+#endif
+    sort(ret.begin(), ret.end(), compare_between_path);
+
     write_output(ret);
 #ifdef TEST
     end_time = clock();
@@ -88,7 +96,7 @@ map<int, int> normalize(vector<vector<int>>& data) {
         data[i][0] = rev_mapper[data[i][0]];
         data[i][1] = rev_mapper[data[i][1]];
     }
-
+    // cout << "unique: " << mapper.size() << endl << flush;
     return mapper;
 }
 
@@ -184,7 +192,6 @@ vector<vector<int>> solve(vector<vector<int>>& data) {
             result[i][j] = mapper[result[i][j]];
         }
     }
-    sort(result.begin(), result.end(), compare_between_path);
     return result;
 }
 

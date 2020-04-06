@@ -3,8 +3,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
-#include <unordered_map>
 #include <map>
+
 #include <algorithm>
 
 //------------------ MACRO ---------------------
@@ -18,15 +18,15 @@ clock_t start_time, end_time;
 
 // 日志输出
 #include <stdio.h>
-// #define say_out(...)     printf(__VA_ARGS__);putchar('\n');fflush(__acrt_iob_func(1))
 #include <iostream>
 using namespace std;
 
 // 输入输出路径
-// #define INPUT_PATH  "resources/data1.txt"
+#define INPUT_PATH  "resources/data1.txt"
 // #define INPUT_PATH  "gen_data.txt"
-#define INPUT_PATH  "resources/test_data.txt"
-#define OUTPUT_PATH "test_output.txt"
+// #define INPUT_PATH  "resources/test_data.txt"
+// #define OUTPUT_PATH "test_output.txt"
+#define OUTPUT_PATH  "search_output.txt"
 
 #else
 // 输入输出路径
@@ -37,14 +37,85 @@ using namespace std;
 
 // 估计数据的大小，来确定缓存的大小
 // ATTENTION 数组大小会不会太大了
-#define MAX_NODE                 2800
-#define MAX_EDGE                 28000 // 数据最多28W行
+#define MAX_NODE                 28000
+#define MAX_EDGE                 280000 // 数据最多28W行
 #define MAX_FOR_EACH_LINE        33     // 每个32位正整数10个字符 + 2个逗号 + 一个换行
 #define CIRCLE_LENGTH            7
 #define MAX_ANSWER               2800000 // 这个数值应该在思考后做调整
 
 //------------------ DECLR ---------------------
+
+// *************** hash map *********************
+
+#define C_HASH_MAP_SIZE    (1 << 16)
+
+const int hash_map_mask = (1 << 16) - 1;
+struct c_hash_map_t {
+    int counter = 1;
+    int header[C_HASH_MAP_SIZE];
+    int key[MAX_NODE + 10], value[MAX_NODE + 10], ptr[MAX_NODE + 10];
+};
+typedef c_hash_map_t* c_hash_map;
+int c_hash_map_hash(int x) {
+    return hash_map_mask & ((x >> 16) ^ x);
+}
+int c_hash_map_size(c_hash_map hash) {
+    return hash -> counter - 1;
+}
+void c_hash_map_insert(c_hash_map hash, int key, int value) {
+    int index = c_hash_map_hash(key);
+    hash->key[hash->counter] = key;
+    hash->value[hash->counter] = value;
+    hash->ptr[hash->counter] = hash->header[index];
+    hash->header[index] = hash->counter ++;
+}
+int c_hash_map_get(c_hash_map hash, int key) {
+    int index = c_hash_map_hash(key);
+    for (int i=hash->header[index]; i!=0; i=hash->ptr[i]) {
+        if (key == hash->key[i]) {
+            return hash->value[i];
+        }
+    }
+    return -1;
+}
+/**
+ * 如果没有key就插入，并且返回value，可以少一次计算hash
+ * 如果有就直接返回value
+ */
+int c_hash_map_insert_if_absent(c_hash_map hash, int key, int value) {
+    int index = c_hash_map_hash(key);
+    for (int i=hash->header[index]; i!=0; i=hash->ptr[i]) {
+        if (key == hash->key[i]) {
+            return hash->value[i];
+        }
+    }
+    hash->key[hash->counter] = key;
+    hash->value[hash->counter] = value;
+    hash->ptr[hash->counter] = hash->header[index];
+    hash->header[index] = hash->counter ++;
+    return value;
+}
+
+int c_hash_map_insert_if_absent_with_inc(c_hash_map hash, int key, int& value, int* dehash) {
+    int index = c_hash_map_hash(key);
+    for (int i=hash->header[index]; i!=0; i=hash->ptr[i]) {
+        if (key == hash->key[i]) {
+            return hash->value[i];
+        }
+    }
+    // 定制
+    dehash[value] = key;
+    hash->key[hash->counter] = key;
+    hash->value[hash->counter] = value;
+    hash->ptr[hash->counter] = hash->header[index];
+    hash->header[index] = hash->counter ++;
+    return value ++;
+}
+
+// *************** hash map over *********************
 // *************** data structure *****************
+
+
 
 // buffer
 char buffer[MAX_EDGE * MAX_FOR_EACH_LINE];
@@ -55,7 +126,8 @@ int  data[MAX_EDGE][3];
 
 // for normalize and denormalize, disordered
 int unique_node_num = 0;
-std::unordered_map<int, int> normalize_v;
+c_hash_map_t t_normalize_v;
+c_hash_map normalize_v = &t_normalize_v;
 int denormalize_v[MAX_NODE];
 
 // ptr 0 for end pointer, so edge ptr begins from 1
@@ -69,7 +141,7 @@ int edge_ptr[MAX_EDGE + 1];
 short sp_matrix[MAX_NODE][MAX_NODE];
 // 0 for not visit, (u+1) for u visit
 int sp_visit[MAX_NODE];
-int queue[MAX_NODE];
+int sp_queue[MAX_NODE];
 
 
 bool search_visit[MAX_NODE];
@@ -109,25 +181,34 @@ int main() {
 #endif
     
     read_input();
-    cout << "read: " << endl << flush;
+    cout << "read: " << data_num << endl << flush;
     normalize();
     cout << "unique: " << unique_node_num << endl << flush;
     shortest_path();
     cout << "shortest path" << endl << flush;
     search();
     cout << "search: " << answer_num << endl << flush;
+    // for (int i=0; i<answer_num; ++i) {
+    //     for (int j=0; j<answers_length[i]; ++j) {
+    //         cout << answers[i][j] << (j == answers_length[i] - 1 ? '\n' : ',') << flush;
+    //     }
+    // }
+#ifdef TEST
+    end_time = clock();
+    cout << "searching: " << (end_time - start_time) << "ms" << endl << flush;
+#endif
     sort_answer();
     cout << "sort" << endl << flush;
     create_writer_fd();
     cout << "create writer fd" << endl << flush;
     deserialize();
     cout << "finish" << endl << endl;
+    close(writer_fd);
     
 
 #ifdef TEST
     end_time = clock();
-    cout.precision(6);
-    cout << "running: " << ((double)(end_time - start_time) / PER_SEC) << "s" << endl << flush;
+    cout << "running: " << (end_time - start_time) << "ms" << endl << flush;
 #endif
     return 0;
 }
@@ -135,26 +216,28 @@ int main() {
 //------------------ FBODY ---------------------
 
 void do_normalize() {
-    int u;
     for (int i=0; i<data_num; ++i) {
-        for (int j=0; j<2; ++j) {
-            u = data[i][j];
-            if (normalize_v.find(u) == normalize_v.end()) {
-                normalize_v[u] = unique_node_num;
-                denormalize_v[unique_node_num ++] = u;
-            }
-        }
+        data[i][0] = c_hash_map_insert_if_absent_with_inc(normalize_v, data[i][0], unique_node_num, denormalize_v);
+        data[i][1] = c_hash_map_insert_if_absent_with_inc(normalize_v, data[i][1], unique_node_num, denormalize_v);
+    }
+    return;
+}
+
+void exame() {
+    for (int i=0; i<unique_node_num; ++i) {
+        int x = denormalize_v[i];
+        int y = c_hash_map_get(normalize_v, x);
+        if (y != i) cout << i << " " << x << " " << y << endl << flush;
     }
 }
 
 // todo can this function merges with reader?
 void normalize() {
     do_normalize();
+    exame();
     int u, v, ptr;    
     for (int i=0; i<data_num; ++i) {
         u = data[i][0]; v = data[i][1];
-        u = normalize_v[u];
-        v = normalize_v[v];
         edge_v[v_ptr_num] = v;
         edge_ptr[v_ptr_num] = edge_header[u];
         edge_header[u] = v_ptr_num ++;
@@ -165,9 +248,9 @@ void normalize() {
 void shortest_path_for_u(int start) {
     int mask = start + 1, u, v;
     int head = 0, tail = 1;
-    queue[0] = start;
+    sp_queue[0] = start;
     while (head < tail) {
-        u = queue[head ++];
+        u = sp_queue[head ++];
         for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
             v = edge_v[i];
             if (v == start) continue;
@@ -175,7 +258,7 @@ void shortest_path_for_u(int start) {
             sp_visit[v] = mask;
             sp_matrix[start][v] = sp_matrix[start][u] + 1;
             if (sp_matrix[start][v] < 6) {
-                queue[tail ++] = v;
+                sp_queue[tail ++] = v;
             }
         }
     }
@@ -189,8 +272,9 @@ void shortest_path() {
 
 inline void extract_answer(int min_id) {
     answers_length[answer_num] = search_path_num;
+    answers_min_id[answer_num] = min_id;
     for (int i=0; i<search_path_num; ++i) {
-        answers[answer_num][i] = search_path[i];
+        answers[answer_num][i] = denormalize_v[search_path[i]];
     }
     answer_num ++;
 }
@@ -239,13 +323,12 @@ bool compare_answer(int i, int j) {
     // say_out("compare i, j: %d, %d", i, j);
     if (answers_length[i] != answers_length[j]) return answers_length[i] < answers_length[j];
     int x = answers_min_id[i], y = answers_min_id[j], len = answers_length[i];
-    while (true) {
+    for (int l=0; l<len; ++l, x=(x+1)%len, y=(y+1)%len) {
         if (answers[i][x] != answers[j][y]) {
-            return denormalize_v[answers[i][x]] < denormalize_v[answers[j][y]];
+            return answers[i][x] < answers[j][y];
         }
-        x ++; if (x == len) x = 0;
-        y ++; if (y == len) y = 0;
     }
+    return true;
 }
 
 void sort_answer() {
@@ -283,7 +366,7 @@ void deserialize() {
         len = answers_length[sorted_index[i]];
         x = answers_min_id[sorted_index[i]];
         for (int j=0; j<len; ++j) {
-            deserialize_int(denormalize_v[path[x]]);
+            deserialize_int(path[x]);
             x ++; if (x >= len) x = 0;
             if (j == len-1) {
                 buffer[buffer_index ++] = '\n';

@@ -37,3 +37,5 @@ test_output.txt
 .vscode/
 gen_data.txt
 resources/data*
+*_result.txt
+*_output.txt
