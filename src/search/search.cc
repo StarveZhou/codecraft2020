@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
+#include <assert.h>
+
 #include <map>
 
 #include <algorithm>
@@ -22,10 +24,11 @@ clock_t start_time, end_time;
 using namespace std;
 
 // 输入输出路径
-#define INPUT_PATH  "resources/data1.txt"
+// #define INPUT_PATH  "resources/data1.txt"
 // #define INPUT_PATH  "gen_data.txt"
 // #define INPUT_PATH  "resources/test_data.txt"
 // #define OUTPUT_PATH "test_output.txt"
+#define INPUT_PATH   "resources/pre_test.txt"
 #define OUTPUT_PATH  "search_output.txt"
 
 #else
@@ -179,7 +182,7 @@ int main() {
 #ifdef TEST
     start_time = clock();
 #endif
-    
+    cout << "before read" << endl << flush;
     read_input();
     cout << "read: " << data_num << endl << flush;
     normalize();
@@ -350,8 +353,9 @@ inline void deserialize_int(int x) {
         buffer[j] = orignial_index;
     }
     if (buffer_index >= max_available) {
-        write(writer_fd, buffer, buffer_index);
-        cout << "write buffer: " << buffer_index << endl << flush;
+        int ret_size = write(writer_fd, buffer, buffer_index);
+        cout << "write buffer: " << ret_size << ", " << buffer_index << endl << flush;
+        // assert(ret_size == buffer_index);
         buffer_index = 0;
     }
 }
@@ -376,7 +380,9 @@ void deserialize() {
         }
     }
     if (buffer_index > 0) {
-        write(writer_fd, buffer, buffer_index);
+        int ret_size = write(writer_fd, buffer, buffer_index);
+        cout << "write buffer: " << ret_size << ", " << buffer_index << endl << flush;
+        // assert(ret_size == buffer_index);
         buffer_index = 0;
     }
     // buffer[buffer_index-1] = EOF;
@@ -403,5 +409,5 @@ void read_input() {
 }
 
 void create_writer_fd() {
-    writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT);
+    writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 00666);
 }
