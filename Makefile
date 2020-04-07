@@ -9,6 +9,9 @@ cmp-pre:
 gen:
 	g++ src/generator/${F} -o test -O3
 	./test > gen_data.txt
+stable:
+	g++ -O3 src/stable/${F} -o test -pthread
+	./test
 clean:
 	# only for git bash
 	rm *.exe -f

@@ -22,7 +22,7 @@ clock_t start_time, end_time;
 // #define INPUT_PATH "resources/pre_test.txt"
 #define INPUT_PATH  "resources/data1.txt"
 // #define OUTPUT_PATH "test_output.txt"
-#define OUTPUT_PATH "brute_result.txt"
+#define OUTPUT_PATH "brute_output.txt"
 
 #else
 
