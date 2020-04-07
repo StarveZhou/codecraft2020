@@ -54,7 +54,7 @@ using namespace std;
 #ifdef TEST
 #define MAX_ANSWER               2800000 // 这个数值应该在思考后做调整
 #else
-#define MAX_ANSWER               10000000
+#define MAX_ANSWER               30000000
 #endif
 
 //------------------ DECLR ---------------------

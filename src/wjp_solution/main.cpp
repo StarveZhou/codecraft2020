@@ -9,6 +9,7 @@
 
 
 #include "utils.h"
+#include <climits>
 
 using namespace std;
 
@@ -21,6 +22,7 @@ using namespace std;
 
 #include <ctime>
 #include <algorithm>
+#include <cstring>
 
 clock_t start_time, end_time;
 
@@ -40,6 +42,8 @@ clock_t start_time, end_time;
 typedef vector<vector<int>> Graph;
 typedef vector<vector<int>> Paths;
 typedef vector<int> Path;
+typedef bool **GraphMatrix;
+typedef int **ShortestPath;
 
 struct Mapping
 {
@@ -65,7 +69,7 @@ Mapping index_mapping(vector<vector<int>> &data)
         }
     }
     sort(all_index.begin(), all_index.end());
-    for (int i=0; i < all_index.size(); i++)
+    for (int i = 0; i < all_index.size(); i++)
     {
         mapping.origin_to_index[all_index[i]] = i;
         mapping.index_to_origin[i] = all_index[i];
@@ -87,7 +91,44 @@ Graph build_graph(vector<vector<int>> &data, Mapping &mapping)
     return graph;
 }
 
-void dfs(Path &path, unordered_set<int> &path_nodes, Graph &graph, Paths &result)
+ShortestPath convert_graph(Graph &graph)
+{
+    int n = graph.size();
+    auto graph_matrix = new int *[n];
+    for (int i = 0; i < n; i++)
+    {
+        graph_matrix[i] = new int[n];
+//        memset(graph_matrix[i], -1, n * sizeof(int));
+        fill_n(graph_matrix[i], n, -1);
+    }
+
+    for (int i = 0; i < n; i++)
+        for (auto j : graph[i])
+            graph_matrix[i][j] = 1;
+
+    return graph_matrix;
+}
+
+ShortestPath get_shortest_path(Graph &graph)
+{
+    ShortestPath shortest_path = convert_graph(graph);
+    int n = graph.size();
+    cout << n << endl;
+    for (int k = 0; k < n; k++)
+    {
+        cout << k << endl;
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                if (shortest_path[i][k] > 0 && shortest_path[k][j] > 0
+                    && shortest_path[i][k] + shortest_path[k][j] < shortest_path[i][j])
+                    shortest_path[i][j] = shortest_path[i][k] + shortest_path[k][j];
+
+    }
+
+    return shortest_path;
+}
+
+void dfs(Path &path, unordered_set<int> &path_nodes, Graph &graph, Paths &result, ShortestPath &shortest_path)
 {
     if (path.size() > MAX_LENGTH)
         return;
@@ -101,11 +142,12 @@ void dfs(Path &path, unordered_set<int> &path_nodes, Graph &graph, Paths &result
             if (path.size() > MIN_LENGTH - 1)
                 result.emplace_back(path);
         }
-        else if (i > source_node && path_nodes.find(i) == path_nodes.end())
+        else if (i > source_node && path_nodes.find(i) == path_nodes.end()
+                 && shortest_path[i][source_node] <= MAX_LENGTH - path.size())
         {
             path.emplace_back(i);
             path_nodes.insert(i);
-            dfs(path, path_nodes, graph, result);
+            dfs(path, path_nodes, graph, result, shortest_path);
             path_nodes.erase(i);
             path.pop_back();
         }
@@ -128,6 +170,8 @@ Paths solve(vector<vector<int>> &data)
     Paths result;
     Mapping mapping = index_mapping(data);
     Graph graph = build_graph(data, mapping);
+    ShortestPath shortest_path = get_shortest_path(graph);
+
 
     Path path;
     unordered_set<int> path_nodes;
@@ -137,7 +181,7 @@ Paths solve(vector<vector<int>> &data)
     {
         path.emplace_back(i);
         path_nodes.insert(i);
-        dfs(path, path_nodes, graph, result);
+        dfs(path, path_nodes, graph, result, shortest_path);
         path_nodes.erase(i);
         path.pop_back();
     }
