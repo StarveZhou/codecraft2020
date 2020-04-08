@@ -1,3 +1,10 @@
+/**
+最单方向朴素的搜索，没有任何并行性
+剪枝使用最短路剪枝的方法。
+请不要再修改这个版本
+*/
+
+
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
