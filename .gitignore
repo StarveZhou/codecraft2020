@@ -39,3 +39,4 @@ gen_data.txt
 resources/data*
 *_result.txt
 *_output.txt
+slice*

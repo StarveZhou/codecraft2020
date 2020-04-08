@@ -25,8 +25,6 @@ clock_t start_time, end_time;
 using namespace std;
 
 // 输入输出路径
-// #define INPUT_PATH  "resources/pre_test.txt"
-// #define INPUT_PATH  "resources/test_data.txt"
 #define INPUT_PATH  "resources/data1.txt"
 #define OUTPUT_PATH  "search_output.txt"
 
@@ -48,9 +46,9 @@ using namespace std;
 
 // 估计数据的大小，来确定缓存的大小
 // ATTENTION 数组大小会不会太大了
-#define MAX_NODE                 30000
-#define MAX_EDGE                 300000 // 数据最多28W行
-#define MAX_FOR_EACH_LINE        40     // 每个32位正整数10个字符 + 2个逗号 + 一个换行
+#define MAX_NODE                 28000
+#define MAX_EDGE                 280000 // 数据最多28W行
+#define MAX_FOR_EACH_LINE        33     // 每个32位正整数10个字符 + 2个逗号 + 一个换行
 #define CIRCLE_LENGTH            7
 
 #ifdef TEST
@@ -165,13 +163,11 @@ int search_path_num = 0;
 // int answers[MAX_ANSWER][7];
 
 int* answers = (int*)malloc(sizeof(int) * MAX_ANSWER * 7);
-int* answers_index = (int*)malloc(sizeof(int) * MAX_ANSWER * 2);
-int answers_now = 0;
 inline void answers_set(int i, int j, int value) {
-    answers[answers_index[i] + j] = value;
+    answers[i * 7 + j] = value;
 }
 inline int answers_get(int i, int j) {
-    return answers[answers_index[i] + j];
+    return answers[i * 7 + j];
 }
 
 int answers_length[MAX_ANSWER];
@@ -211,7 +207,7 @@ int main() {
 
 #ifdef TEST
     end_time = clock();
-    cout << "searching: " << (end_time - start_time) / 1000.0 << "ms" << endl << flush;
+    cout << "searching: " << (end_time - start_time) << "ms" << endl << flush;
 #endif
     sort_answer();
     create_writer_fd();
@@ -220,7 +216,7 @@ int main() {
     
 #ifdef TEST
     end_time = clock();
-    cout << "running: " << (end_time - start_time) / 1000.0 << "ms" << endl << flush;
+    cout << "running: " << (end_time - start_time) << "ms" << endl << flush;
 #endif
     return 0;
 }
@@ -276,8 +272,6 @@ void shortest_path() {
 
 inline void extract_answer(int min_id) {
     answers_length[answer_num] = search_path_num;
-    int index = answers_index[answer_num] = answers_now;
-    answers_now += search_path_num;
     for (int i=0, j=min_id; i<search_path_num; ++i) {
         answers_set(answer_num, i, denormalize_v[search_path[j]]);
         j ++; if (j == search_path_num) j = 0;
