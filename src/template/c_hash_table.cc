@@ -23,6 +23,12 @@ struct c_hash_map_t {
     int key[MAX_NODE + 10], value[MAX_NODE + 10], ptr[MAX_NODE + 10];
 };
 typedef c_hash_map_t* c_hash_map;
+int c_hash_map_size();
+int c_hash_map_size(c_hash_map hash);
+void c_hash_map_insert(c_hash_map hash, int key, int value);
+void c_hash_map_replace(c_hash_map hash, int key, int value);
+int c_hash_map_get(c_hash_map hash, int key);
+
 int c_hash_map_hash(int x) {
     return hash_map_mask & ((x >> 16) ^ x);
 }
@@ -36,6 +42,14 @@ void c_hash_map_insert(c_hash_map hash, int key, int value) {
     hash->ptr[hash->counter] = hash->header[index];
     hash->header[index] = hash->counter ++;
 }
+void c_hash_map_replace(c_hash_map hash, int key, int value) {
+    int index = c_hash_map_hash(key);
+    for (int i=hash->header[index]; i!=0; i=hash->ptr[i]) {
+        if (key == hash->key[i]) {
+            hash->value[i] = value;
+        }
+    }
+}
 int c_hash_map_get(c_hash_map hash, int key) {
     int index = c_hash_map_hash(key);
     for (int i=hash->header[index]; i!=0; i=hash->ptr[i]) {
@@ -45,6 +59,9 @@ int c_hash_map_get(c_hash_map hash, int key) {
     }
     return -1;
 }
+
+
+
 /**
  * 如果没有key就插入，并且返回value，可以少一次计算hash
  * 如果有就直接返回value

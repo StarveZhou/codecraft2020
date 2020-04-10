@@ -27,7 +27,8 @@ using namespace std;
 // 输入输出路径
 // #define INPUT_PATH  "resources/pre_test.txt"
 // #define INPUT_PATH  "resources/test_data.txt"
-#define INPUT_PATH  "resources/data1.txt"
+#define INPUT_PATH  "resources/2861665.txt"
+// #define INPUT_PATH  "resources/data1.txt"
 #define OUTPUT_PATH  "search_output.txt"
 
 #else

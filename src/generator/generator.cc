@@ -34,10 +34,14 @@ vector<int> node_generator() {
 
 vector<vector<int>> edge_generator(vector<int> nodes) {
     vector<vector<int>> edges(N);
-    for (int i=0; i<M; ++i) {
+    set<pair<int, int>> unique_set;
+    while (unique_set.size() < M) {
         int u = random32() % N;
         int v = u;
         while (u == v) v = random32() % N;
+        if (unique_set.find(make_pair(u, v)) == unique_set.end()) {
+            unique_set.insert(make_pair(u, v));
+        } else continue;
         edges[u].push_back(v);
     }
     vector<vector<int>> format_edges;

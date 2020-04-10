@@ -96,7 +96,6 @@ unordered_map<int, int> normalize(vector<vector<int>>& data) {
         data[i][0] = rev_mapper[data[i][0]];
         data[i][1] = rev_mapper[data[i][1]];
     }
-    cout << "rev map size: " << rev_mapper.size() << endl;
     return mapper;
 }
 
@@ -133,7 +132,7 @@ void brute_dfs(vector<int>& path, int n, vector<vector<int>>& graph, vector<vect
     } else {
         for (int i=0; i<graph[path.back()].size(); ++i) {
             int v = graph[path.back()][i];
-            if (s_dist[v][path.front()] == -1 || s_dist[v][path.front()] + path.size() > 7) continue;
+            if (s_dist[v][path.front()] + path.size() > 7) continue;
             if (path.size() < 3 && path.front() == v) continue;
             if (v < path.front()) continue;
             for (int i=1; i<path.size(); ++i) {

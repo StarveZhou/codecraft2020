@@ -17,3 +17,5 @@ clean:
 	rm *.exe -f
 	rm test_output.txt -f
 	rm log.txt -f
+	rm slice* -f
+	rm *_output.txt -f
