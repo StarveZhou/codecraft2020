@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 
+#include <string.h>
 #include <assert.h>
 #include <math.h>
 
@@ -17,16 +18,18 @@ clock_t start_time, end_time;
 // 日志输出
 #include <stdio.h>
 
+#define INPUT_PATH   "resources/large_nodes_test.txt"
+// #define INPUT_PATH  "resources/data1.txt"
 // #define INPUT_PATH  "resources/2861665.txt"
-// #define OUTPUT_PATH  "c_search_output.txt"
+#define OUTPUT_PATH  "c_output.txt"
 
 
-#define INPUT_PATH  "/data/test_data.txt"
-#define OUTPUT_PATH "/projects/student/result.txt"
+// #define INPUT_PATH  "/data/test_data.txt"
+// #define OUTPUT_PATH "/projects/student/result.txt"
 
-#define MAX_NODE               30000
-#define MAX_EDGE               280000
-#define MAX_ANSW               3000000
+#define MAX_NODE               570000
+#define MAX_EDGE               285000
+#define MAX_ANSW               3000100
 #define MAX_FOR_EACH_LINE      34
 
 
@@ -36,10 +39,11 @@ clock_t start_time, end_time;
 const int hash_map_mask = (1 << 16) - 1;
 struct c_hash_map_t {
     int counter = 1;
-    int header[C_HASH_MAP_SIZE];
+    int header[C_HASH_MAP_SIZE + 10];
     int key[MAX_NODE + 10], value[MAX_NODE + 10], ptr[MAX_NODE + 10];
 };
 typedef c_hash_map_t* c_hash_map;
+c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 int c_hash_map_size();
 int c_hash_map_size(c_hash_map hash);
 void c_hash_map_insert(c_hash_map hash, int key, int value);
@@ -60,7 +64,7 @@ int data_rev_mapping[MAX_NODE];
 int node_num = 0;
 
 void read_input() {
-    
+    printf("before read\n"); fflush(stdout);
 
     int fd = open(INPUT_PATH, O_RDONLY);
     size_t size = read(fd, &buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
@@ -70,7 +74,7 @@ void read_input() {
     printf("after read\n"); fflush(stdout);
 
     // 解析
-    c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
+    
     int x = 0, idx = 0;
     int* local_data = &data[0][0];
     for (int i=0; i<size; ++i) {
@@ -84,6 +88,7 @@ void read_input() {
     }
     data_num = (local_data - &data[0][0]) / 3;
 
+    printf("data num: %d, %d\n", data_num, c_hash_map_size(mapping)); fflush(stdout);
 
     for (int i=0; i<data_num; ++i) {
         if (c_hash_map_get(mapping, data[i][0]) == -1) {
@@ -96,11 +101,17 @@ void read_input() {
         }
     }
 
+    printf("node_num: %d\n", node_num); fflush(stdout);
+    
+
     std::sort(data_rev_mapping, data_rev_mapping + node_num);
 
     for (int i=0; i<node_num; ++i) {
         c_hash_map_replace(mapping, data_rev_mapping[i], i);
+        // assert(data_rev_mapping[i] == i);
+        // assert(c_hash_map_get(mapping, i) == i);
     }
+
     for (int i=0; i<data_num; ++i) {
         x = c_hash_map_get(mapping, data[i][0]);
         data[i][0] = x;
@@ -113,7 +124,7 @@ void read_input() {
 int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    printf("writer fd: %d\n", writer_fd);
+    // printf("writer fd: %d\n", writer_fd);
     if (writer_fd == -1) {
         printf("failed open!");
         exit(0);
@@ -129,6 +140,7 @@ int filter_cnt[MAX_NODE];
 int node_queue[MAX_NODE];
 
 void build_filter_edge(bool revert) {
+    edge_num = 1;
     int from = 0, to = 1;
     if (revert) {
         from = 1, to = 0;
@@ -139,7 +151,7 @@ void build_filter_edge(bool revert) {
         edge_ptr[edge_num] = edge_header[data[i][from]];
         edge_header[data[i][from]] = edge_num ++;
 
-        filter_cnt[data[i][to]] += 1;
+        // filter_cnt[data[i][to]] += 1;
     }
 }
 
@@ -147,8 +159,7 @@ void edge_filter(bool revert) {
     if (!revert) {
         memset(edge_header, 0, sizeof(edge_header));
         memset(filter_cnt, 0, sizeof(filter_cnt));
-        edge_num = 1;
-        
+        edge_num = 1;        
     }
 
     build_filter_edge(revert);
@@ -197,6 +208,9 @@ void build_edge() {
     for (int i=0; i<node_num; ++i) {
         if (edge_header[i] != edge_header[i+1]) {
             std::sort(edges + edge_header[i], edges + edge_header[i+1]);
+            // for (int j=edge_header[i]; j<edge_header[i+1]-1; j++) {
+            //     assert(edges[j] < edges[j+1]);
+            // }
         }
     }
 }
@@ -228,10 +242,10 @@ void build_rev_edge() {
 
 
 
-int temp_num = 0;
+// int temp_num = 0;
 int sp_dist[MAX_NODE], visit[MAX_NODE], mask = 0;
 void shortest_path(int u) {
-    temp_num = 0;
+    // temp_num = 0;
 
     ++ mask;
     sp_dist[u] = 0; visit[u] = mask;
@@ -240,7 +254,7 @@ void shortest_path(int u) {
     int head = 0, tail = 1, v;
     while (head < tail) {
         u = node_queue[head ++];
-        temp_num ++;
+        // temp_num ++;
         for (int i=rev_edges_header[u]; i<rev_edges_header[u+1]; ++i) {
             v = rev_edges[i];
             if (visit[v] == mask) continue;
@@ -262,7 +276,7 @@ int answer_header[5][MAX_NODE], answer_tail[5][MAX_NODE];
  */
 void extract_answer() {
     for (int i=0; i<depth; ++i) {
-        assert(dfs_path[i] < 28500);
+        // assert(dfs_path[i] < 28500);
         all_answer[answer_num][i] = data_rev_mapping[dfs_path[i]];
     }
     int x = depth - 3, y = dfs_path[0];
@@ -295,16 +309,16 @@ void do_search() {
 }
 
 void search() {
-    int total = 0;
+    // int total = 0;
     for (int i=0; i<node_num; ++i) {
         if (edge_header[i] == edge_header[i+1]) continue;
         shortest_path(i);
-        total += temp_num;
+        // total += temp_num;
         mask ++; visit[i] = mask;
         depth = 1; dfs_path[0] = i;
         do_search();
     }
-    printf("all sp dist: %d\n", total);
+    // printf("all sp dist: %d\n", total);
 }
 
 int buffer_index = 0;
@@ -327,7 +341,7 @@ inline void deserialize_int(int x) {
     }
     if (buffer_index >= max_available) {
         int ret_size = write(writer_fd, buffer, buffer_index);
-        printf("%d, %d\n", ret_size, buffer_index);
+        // printf("%d, %d\n", ret_size, buffer_index);
         // assert(ret_size == buffer_index);
         buffer_index = 0;
     }
@@ -349,7 +363,7 @@ void write_to_disk() {
     }
     if (buffer_index > 0) {
         int ret_size = write(writer_fd, buffer, buffer_index);
-        printf("%d, %d\n", ret_size, buffer_index);
+        // printf("%d, %d\n", ret_size, buffer_index);
         // assert(ret_size == buffer_index);
     }
 }
@@ -360,12 +374,15 @@ int main() {
 
     read_input();
     printf("node num: %d\n", node_num); fflush(stdout);
+    printf("first: %d\n", data_rev_mapping[0]); fflush(stdout);
 
     end_time = clock();
-    printf("read: %d ms\n", end_time - start_time); fflush(stdout);
+    printf("read: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
+    
 
-    edge_filter(true);
-    edge_filter(false);
+    // edge_filter(true);
+    // edge_filter(false);
+    build_filter_edge(false);
 
     build_edge();
     build_rev_edge();
@@ -373,19 +390,22 @@ int main() {
     printf("edge num: %d\n", edge_header[node_num]); fflush(stdout);
 
     end_time = clock();
-    printf("build edge: %d ms\n", end_time - start_time); fflush(stdout);
+    printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
+
+    printf("first: %d\n", data_rev_mapping[0]); fflush(stdout);
 
     search();
     printf("answer: %d\n", answer_num - 1); fflush(stdout);
+    printf("first: %d\n", data_rev_mapping[0]); fflush(stdout);
 
     end_time = clock();
-    printf("search: %d ms\n", end_time - start_time); fflush(stdout);
+    printf("search: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
     end_time = clock();
-    printf("running: %d ms\n", end_time - start_time);
+    printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
 
