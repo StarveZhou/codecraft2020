@@ -1,3 +1,7 @@
+/**
+ * 算法有问题，不会更快而且正确性有待确定
+ */
+
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -23,7 +27,9 @@ clock_t start_time, end_time;
 // #define INPUT_PATH  "resources/data1.txt"
 #define INPUT_PATH  "resources/2861665.txt"
 // #define INPUT_PATH   "resources/test_data.txt"
-#define OUTPUT_PATH  "u_output.txt"
+// #define INPUT_PATH   "resources/pre_test.txt"
+// #define INPUT_PATH   "resources/reuse_test_data.txt"
+#define OUTPUT_PATH  "r_output.txt"
 
 
 // #define INPUT_PATH  "/data/test_data.txt"
@@ -66,7 +72,9 @@ int node_num = 0;
 c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 
 void read_input() {
+    printf("before read\n"); fflush(stdout);
     int fd = open(INPUT_PATH, O_RDONLY);
+    printf("reader fd: %d\n", fd); fflush(stdout);
     if (fd == -1) {
         printf("open read only file failed\n");
         exit(0);
@@ -74,6 +82,7 @@ void read_input() {
     size_t size = read(fd, &buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
     // 这一步没啥必要？
     close(fd);
+    printf("after read: %d\n", size); fflush(stdout);
 
     // 解析
     
@@ -124,6 +133,7 @@ void read_input() {
 int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    // printf("writer fd: %d\n", writer_fd);
     if (writer_fd == -1) {
         printf("failed open!");
         exit(0);
@@ -200,6 +210,12 @@ void rehash_nodes() {
     }
     node_num = rehash_node_num;
 
+    // printf("\n**after rehash:\n");
+    // for (int i=0; i<node_num; ++i) {
+    //     printf("%d %d\n", data_rev_mapping[i], i);
+    // }
+    // printf("over\n");
+
     edge_num = 0;
     for (u=0; u<node_num; ++u) {
         for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
@@ -245,6 +261,9 @@ void filter_searchable_nodes() {
             if (v > u) searchable_nodes[1][u] = true;
         }
     }
+    for (int i=0; i<node_num; ++i) {
+        searchable_nodes[0][i] &= searchable_nodes[1][i];
+    }
 
     int total_nodes_c = 0, searchable_nodes_c = 0;
     for (int i=0; i<node_num; ++i) {
@@ -254,16 +273,111 @@ void filter_searchable_nodes() {
     printf("total node: %d, searchable: %d\n", total_nodes_c, searchable_nodes_c);
 }
 
+int visit[MAX_NODE], mask = 1111;
+int search_order[MAX_NODE], search_order_num = 0;
+int search_next[MAX_NODE];
+void calc_search_order() {
+    int usage = 0;
+
+    mask ++;
+    int u, v, tmp;
+    for (u=0; u<node_num; ++u) {
+        if (visit[u] == mask || rev_edge_topo_header[u] == rev_edge_topo_header[u+1]) continue;
+        if (!searchable_nodes[0][u]) continue;
+        visit[u] = mask;
+        search_order[search_order_num] = u;
+        search_next[search_order_num] = -1;
+        for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
+            v = rev_edge_topo_edges[i];
+            if (visit[v] == mask) continue;
+            if (rev_edge_topo_header[v] == rev_edge_topo_header[v+1] || !searchable_nodes[0][v]) continue;
+            visit[v] = mask;
+            search_next[search_order_num] = v;
+            // swap to ensure the first one is always search_next
+            rev_edge_topo_edges[i] = rev_edge_topo_edges[rev_edge_topo_header[u]];
+            rev_edge_topo_edges[rev_edge_topo_header[u]] = v;
+
+            usage ++;
+            break;
+        }
+        search_order_num ++;
+    }
+
+    printf("1878: %d\n", rev_edge_topo_edges[rev_edge_topo_header[1878]]);
+
+    // printf("reuse bfs tree: %d\n", usage);
+    // printf("\n** search order:\n");
+    // for (int i=0; i<search_order_num; ++i) {
+    //     printf("%d %d\n", search_order[i], search_next[i]);
+    // }
+    // printf("over\n");
+    
+}
+
 #define MAX_SP_DIST       (4)
 
-int visit[MAX_NODE], mask = 1111;
-int sp_dist[MAX_NODE];
+
+int sp_dist[MAX_NODE], sp_dist_ext[MAX_NODE];
+int is_first_parent[MAX_NODE];
+void shortest_path_ext(int u) {
+    memset(sp_dist, -1, sizeof(int) * node_num);
+    memset(sp_dist_ext, -1, sizeof(int) * node_num);
+
+    mask ++;
+    sp_dist[u] = 0;
+
+    int v, head = 0, tail = 0, height, height_ext, is_first;
+    bool reach_max;
+    node_queue[tail ++] = u;
+    while (head < tail) {
+        u = node_queue[head ++];
+        if (head == 2) {
+            is_first_parent[u] = mask;
+        }
+        height = sp_dist[u];
+        height_ext = sp_dist_ext[u];
+        is_first = is_first_parent[u];
+        for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
+            v = rev_edge_topo_edges[i];
+            if (sp_dist[v] == -1) {
+                sp_dist[v] = height + 1;
+                is_first_parent[v] = is_first;
+                if (is_first == mask) {
+                    if (height == MAX_SP_DIST) continue;
+                } else {
+                    if (height == MAX_SP_DIST-1) continue;
+                }
+                node_queue[tail ++] = v;
+            } else {
+                if (sp_dist_ext[v] != -1) continue;
+                if (is_first_parent[v] == mask) continue;
+                if (is_first_parent[u] == mask) {
+                    sp_dist_ext[v] = height + 1;
+                    if (height == MAX_SP_DIST) continue;
+                } else {
+                    sp_dist_ext[v] = height_ext + 1;
+                    if (height_ext == MAX_SP_DIST) continue;
+                }
+                
+                node_queue[tail ++] = v;
+            }
+        }
+    }
+    // for (int i=0; i<node_num; ++i) {
+    //     printf("** %d[%d]: %d, %d\n", i, is_first_parent[i] == mask, sp_dist[i], sp_dist_ext[i]);
+    // }
+    for (int i=0; i<node_num; ++i) {
+        if (is_first_parent[i] == mask) sp_dist_ext[i] = sp_dist[i];
+    }
+}
+
+
 void shortest_path(int u) {
     memset(sp_dist, -1, sizeof(int) * node_num);
     mask ++;
     sp_dist[u] = 0;
 
-    int v, head = 0, tail = 0, height, orig_u = u;
+    int v, head = 0, tail = 0, height;
     bool reach_max;
     node_queue[tail ++] = u;
     while (head < tail) {
@@ -273,7 +387,6 @@ void shortest_path(int u) {
         for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
             v = rev_edge_topo_edges[i];
             if (visit[v] == mask) continue;
-            if (v <= orig_u) continue;
             visit[v] = mask;
             sp_dist[v] = height + 1;
             if (reach_max) continue;
@@ -281,7 +394,6 @@ void shortest_path(int u) {
         }
     }
 }
-
 
 int depth, dfs_path[8];
 int all_answer[MAX_ANSW + 1][7], answer_num = 1;
@@ -304,6 +416,7 @@ void extract_answer() {
 }
 
 int cut_count = 0;
+bool use_extent;
 
 void do_search() {
     int u, v, mid; 
@@ -317,7 +430,11 @@ void do_search() {
         if (v <= dfs_path[0] || visit[v] == mask) continue;
         if (depth == 7) continue;
         if (depth + MAX_SP_DIST >= 7) {
-            if (sp_dist[v] == -1 || sp_dist[v] + depth > 7) continue;
+            if (use_extent) {
+                if (sp_dist_ext[v] == -1 || sp_dist_ext[v] + depth > 8) continue;
+            } else {
+                if (sp_dist[v] == -1 || sp_dist[v] + depth > 7) continue;
+            }
         }
         dfs_path[depth ++] = v; visit[v] = mask;
         do_search();
@@ -326,16 +443,27 @@ void do_search() {
 }
 
 void search() {
-    int last_answer_num = 0;
-    for (int i=0; i<node_num; ++i) {
-        if (edge_header[i] == edge_header[i+1]) continue;
-        if (!searchable_nodes[0][i] || !searchable_nodes[1][i]) continue;
-        shortest_path(i);
+    int last_answer_num = 0, x, y;
+    for (int i=0; i<search_order_num; ++i) {
+        x = search_order[i]; y = search_next[i];
+        if (y != -1) {
+            shortest_path_ext(x);
+        } else {
+            shortest_path(x);
+        }
+
         mask ++; visit[i] = mask;
-        depth = 1; dfs_path[0] = i;
+        depth = 1; dfs_path[0] = x;
+        use_extent = false;
         do_search();
+        if (y != -1) {
+            mask ++;
+            depth = 1; dfs_path[0] = y;
+            use_extent = true;
+            do_search();
+        }
         if (answer_num - last_answer_num > 100000) {
-            printf("%d answer num: %d %d\n", i, answer_num, cut_count); fflush(stdout);
+            printf("%d %d answer num: %d %d\n", x, y, answer_num, cut_count); fflush(stdout);
             last_answer_num = answer_num;
         }
     }
@@ -417,6 +545,8 @@ int main() {
     end_time = clock();
     printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
+    calc_search_order();
+    
     search();
     printf("answer num: %d\n", answer_num - 1);
 

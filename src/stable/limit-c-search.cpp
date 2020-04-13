@@ -18,16 +18,10 @@ clock_t start_time, end_time;
 // 日志输出
 #include <stdio.h>
 
-// #define INPUT_PATH   "resources/topo_edge_test.txt"
-// #define INPUT_PATH   "resources/topo_test.txt"
-// #define INPUT_PATH  "resources/data1.txt"
-#define INPUT_PATH  "resources/2861665.txt"
-// #define INPUT_PATH   "resources/test_data.txt"
-#define OUTPUT_PATH  "u_output.txt"
 
 
-// #define INPUT_PATH  "/data/test_data.txt"
-// #define OUTPUT_PATH "/projects/student/result.txt"
+#define INPUT_PATH  "/data/test_data.txt"
+#define OUTPUT_PATH "/projects/student/result.txt"
 
 #define MAX_NODE               570000
 #define MAX_EDGE               285000
@@ -41,10 +35,11 @@ clock_t start_time, end_time;
 const int hash_map_mask = (1 << 16) - 1;
 struct c_hash_map_t {
     int counter = 1;
-    int header[C_HASH_MAP_SIZE];
+    int header[C_HASH_MAP_SIZE + 10];
     int key[MAX_NODE + 10], value[MAX_NODE + 10], ptr[MAX_NODE + 10];
 };
 typedef c_hash_map_t* c_hash_map;
+c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 int c_hash_map_size();
 int c_hash_map_size(c_hash_map hash);
 void c_hash_map_insert(c_hash_map hash, int key, int value);
@@ -63,25 +58,16 @@ int data[MAX_EDGE][3], data_num;
 
 int data_rev_mapping[MAX_NODE];
 int node_num = 0;
-c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 
 void read_input() {
     int fd = open(INPUT_PATH, O_RDONLY);
-    if (fd == -1) {
-        printf("open read only file failed\n");
-        exit(0);
-    }
     size_t size = read(fd, &buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
     // 这一步没啥必要？
     close(fd);
 
     // 解析
     
-    if (buffer[size-1] >= '0' && buffer[size-1] <= '9') {
-        buffer[size ++] = '\n';
-    }
-
-    int x = 0;
+    int x = 0, idx = 0;
     int* local_data = &data[0][0];
     for (int i=0; i<size; ++i) {
         if (buffer[i] == ',' || buffer[i] == '\n') {
@@ -93,7 +79,6 @@ void read_input() {
         }
     }
     data_num = (local_data - &data[0][0]) / 3;
-    printf("data num: %d\n", data_num); fflush(stdout);
 
     for (int i=0; i<data_num; ++i) {
         if (c_hash_map_get(mapping, data[i][0]) == -1) {
@@ -105,11 +90,14 @@ void read_input() {
             data_rev_mapping[node_num ++] = data[i][1];
         }
     }
+    
 
     std::sort(data_rev_mapping, data_rev_mapping + node_num);
 
     for (int i=0; i<node_num; ++i) {
         c_hash_map_replace(mapping, data_rev_mapping[i], i);
+        // assert(data_rev_mapping[i] == i);
+        // assert(c_hash_map_get(mapping, i) == i);
     }
 
     for (int i=0; i<data_num; ++i) {
@@ -124,6 +112,7 @@ void read_input() {
 int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    // printf("writer fd: %d\n", writer_fd);
     if (writer_fd == -1) {
         printf("failed open!");
         exit(0);
@@ -136,161 +125,146 @@ int edge_v[MAX_EDGE], edge_ptr[MAX_EDGE], edge_header[MAX_NODE];
 bool filter_useless_node[MAX_EDGE];
 int filter_cnt[MAX_NODE];
 
-int node_queue[MAX_NODE << 1];
+int node_queue[MAX_NODE];
 
-
-void node_topo_filter(bool revert) {
-    int u, v, head = (revert == false), tail = (0 ^ head);
-    if (edge_num != 1) {
-        memset(edge_header, 0, sizeof(int) * node_num);
-        memset(filter_cnt, 0, sizeof(int) * node_num);
-        edge_num = 0;
+void build_filter_edge(bool revert) {
+    edge_num = 1;
+    int from = 0, to = 1;
+    if (revert) {
+        from = 1, to = 0;
     }
     for (int i=0; i<data_num; ++i) {
-        u = data[i][head]; v = data[i][tail];
-        if (filter_useless_node[u] || filter_useless_node[v]) continue;
+        if (filter_useless_node[data[i][0]] || filter_useless_node[data[i][1]]) continue;
+        edge_v[edge_num] = data[i][to];
+        edge_ptr[edge_num] = edge_header[data[i][from]];
+        edge_header[data[i][from]] = edge_num ++;
 
-        edge_v[edge_num] = v;
-        edge_ptr[edge_num] = edge_header[u];
-        edge_header[u] = edge_num ++;
+        // filter_cnt[data[i][to]] += 1;
+    }
+}
 
-        filter_cnt[v] ++;
+void edge_filter(bool revert) {
+    if (!revert) {
+        memset(edge_header, 0, sizeof(edge_header));
+        memset(filter_cnt, 0, sizeof(filter_cnt));
+        edge_num = 1;        
     }
 
-    head = tail = 0;
-    for (int i=0; i<node_num; ++i) if (filter_cnt[i] == 0) {
-        node_queue[tail ++] = i;
+    build_filter_edge(revert);
+
+    int head = 0, tail = 0;
+    for (int i=0; i<node_num; ++i) {
+        if (filter_cnt[i] == 0) {
+            node_queue[tail ++] = i;
+            filter_useless_node[i] = true;
+        }
     }
+    int u, v;
     while (head < tail) {
         u = node_queue[head ++];
-        filter_useless_node[u] = true;
         for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
             v = edge_v[i];
             filter_cnt[v] --;
-            if (filter_cnt[v] == 0) node_queue[tail ++] = i;
+            if (filter_cnt[v] == 0) {
+                node_queue[tail ++] = v;
+                filter_useless_node[v] = true;
+            }
         }
     }
 }
 
-int rehash_mapping[MAX_NODE];
-int edge_topo_header[MAX_NODE];
-int edge_topo_edges[MAX_EDGE];
-int rev_edge_topo_header[MAX_NODE];
-int rev_edge_topo_edges[MAX_NODE];
-void rehash_nodes() {
-    int rehash_node_num = 0;
-    for (int i=0; i<node_num; ++i) {
-        if (filter_useless_node[i]) continue;
-        data_rev_mapping[rehash_node_num] = data_rev_mapping[i];
-        rehash_mapping[i] = rehash_node_num ++;
-    }
 
+int edges[MAX_EDGE];
 
-    int u, v;
-    edge_num = 1;
-    memset(edge_header, 0, sizeof(int) * rehash_node_num);
-    for (int i=0; i<data_num; ++i) {
-        u = data[i][0]; v = data[i][1];
-        if (filter_useless_node[u] || filter_useless_node[v]) continue;
-        u = rehash_mapping[u]; v = rehash_mapping[v];
-        
-        edge_v[edge_num] = v;
-        edge_ptr[edge_num] = edge_header[u];
-        edge_header[u] = edge_num ++; 
-    }
-    node_num = rehash_node_num;
-
+void build_edge() {
     edge_num = 0;
-    for (u=0; u<node_num; ++u) {
-        for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
-            v = edge_v[i];
-            edge_topo_edges[edge_num ++] = v;
-        }
-        edge_topo_header[u+1] = edge_num;
-        std::sort(edge_topo_edges + edge_topo_header[u], edge_topo_edges + edge_topo_header[u+1]);
-    }
-
-    // build rev edge for bfs
-    edge_num = 1;
-    memset(edge_header, 0, sizeof(int) * rehash_node_num);
-    for (u=0; u<node_num; ++u) {
-        for (int i=edge_topo_header[u]; i<edge_topo_header[u+1]; ++i) {
-            v = edge_topo_edges[i];
-
-            edge_v[edge_num] = u;
-            edge_ptr[edge_num] = edge_header[v];
-            edge_header[v] = edge_num ++;            
-        }
-    }
-    edge_num = 0;
-    for (u=0; u<node_num; ++u) {
-        for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
-            v = edge_v[i];
-            rev_edge_topo_edges[edge_num ++] = v;
-        }
-        rev_edge_topo_header[u+1] = edge_num;
-    }
-}
-
-
-
-
-bool searchable_nodes[2][MAX_NODE];
-void filter_searchable_nodes() {
     int v;
     for (int u=0; u<node_num; ++u) {
-        for (int j=edge_topo_header[u]; j<edge_topo_header[u+1]; ++j) {
-            v = edge_topo_edges[j];
-            if (v < u) searchable_nodes[0][v] = true;
-            if (v > u) searchable_nodes[1][u] = true;
+        if (filter_useless_node[u]) {
+            edge_header[u] = edge_num;
+            continue;
+        }
+        for (int i=edge_header[u]; i!=0; i=edge_ptr[i]) {
+            v = edge_v[i];
+            if (filter_useless_node[v]) continue;
+            edges[edge_num ++] = v;
+        }
+        edge_header[u] = edge_num;
+    }
+    for (int i=node_num-1; i>=0; --i) edge_header[i+1] = edge_header[i];
+    edge_header[0] = 0;
+    for (int i=0; i<node_num; ++i) {
+        if (edge_header[i] != edge_header[i+1]) {
+            std::sort(edges + edge_header[i], edges + edge_header[i+1]);
+            // for (int j=edge_header[i]; j<edge_header[i+1]-1; j++) {
+            //     assert(edges[j] < edges[j+1]);
+            // }
+        }
+    }
+}
+
+int rev_edges_header[MAX_NODE], rev_edges[MAX_EDGE];
+void build_rev_edge() {
+    edge_num = 1;
+    int v;
+    for (int u=0; u<node_num; ++u) {
+        for (int i=edge_header[u]; i<edge_header[u+1]; ++i) {
+            v = edges[i];
+            edge_v[edge_num] = u; 
+            edge_ptr[edge_num] = rev_edges_header[v];
+            rev_edges_header[v] = edge_num ++;
         }
     }
 
-    int total_nodes_c = 0, searchable_nodes_c = 0;
-    for (int i=0; i<node_num; ++i) {
-        total_nodes_c ++;
-        searchable_nodes_c += (searchable_nodes[0][i] == true && searchable_nodes[1][i] == true);
+    edge_num = 0;
+    for (int u=0; u<node_num; ++u) {
+        for (int i=rev_edges_header[u]; i!=0; i=edge_ptr[i]) {
+            v = edge_v[i];
+            rev_edges[edge_num ++] = v;
+        }
+        rev_edges_header[u] = edge_num;
     }
-    printf("total node: %d, searchable: %d\n", total_nodes_c, searchable_nodes_c);
+    for (int i=node_num-1; i>=0; --i) rev_edges_header[i+1] = rev_edges_header[i];
+    rev_edges_header[0] = 0;
 }
 
-#define MAX_SP_DIST       (4)
+#define SP_MAX           4
 
-int visit[MAX_NODE], mask = 1111;
-int sp_dist[MAX_NODE];
+// int temp_num = 0;
+int sp_dist[MAX_NODE], visit[MAX_NODE], mask = 0;
 void shortest_path(int u) {
-    memset(sp_dist, -1, sizeof(int) * node_num);
-    mask ++;
-    sp_dist[u] = 0;
+    // temp_num = 0;
 
-    int v, head = 0, tail = 0, height, orig_u = u;
-    bool reach_max;
-    node_queue[tail ++] = u;
+    ++ mask;
+    sp_dist[u] = 0; visit[u] = mask;
+    node_queue[0] = u;
+
+    int head = 0, tail = 1, v;
     while (head < tail) {
         u = node_queue[head ++];
-        height = sp_dist[u];
-        reach_max = height == MAX_SP_DIST-1;
-        for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
-            v = rev_edge_topo_edges[i];
+        // temp_num ++;
+        for (int i=rev_edges_header[u]; i<rev_edges_header[u+1]; ++i) {
+            v = rev_edges[i];
             if (visit[v] == mask) continue;
-            if (v <= orig_u) continue;
+            sp_dist[v] = sp_dist[u] + 1;
             visit[v] = mask;
-            sp_dist[v] = height + 1;
-            if (reach_max) continue;
+            if (sp_dist[v] == SP_MAX) continue;
             node_queue[tail ++] = v;
         }
     }
 }
-
 
 int depth, dfs_path[8];
 int all_answer[MAX_ANSW + 1][7], answer_num = 1;
 int all_answer_ptr[MAX_ANSW];
 int answer_header[5][MAX_NODE], answer_tail[5][MAX_NODE];
 
-
+/**
+ * 结果有大问题，但是应该是映射，不是搜索，因为答案的数量是一样的，出现了没有的点
+ */
 void extract_answer() {
     for (int i=0; i<depth; ++i) {
+        // assert(dfs_path[i] < 28500);
         all_answer[answer_num][i] = data_rev_mapping[dfs_path[i]];
     }
     int x = depth - 3, y = dfs_path[0];
@@ -303,20 +277,19 @@ void extract_answer() {
     answer_num ++;
 }
 
-int cut_count = 0;
+
 
 void do_search() {
-    int u, v, mid; 
+    int u, v; 
     u = dfs_path[depth-1];
-    for (int i=edge_topo_header[u]; i<edge_topo_header[u+1]; ++i) {
-        v = edge_topo_edges[i];
+    for (int i=edge_header[u]; i<edge_header[u+1]; ++i) {
+        v = edges[i];
         if (v == dfs_path[0]) {
             if (depth >= 3 && depth <= 7) extract_answer();
             continue;
         }
         if (v <= dfs_path[0] || visit[v] == mask) continue;
-        if (depth == 7) continue;
-        if (depth + MAX_SP_DIST >= 7) {
+        if (depth + SP_MAX >= 7) {
             if (sp_dist[v] == -1 || sp_dist[v] + depth > 7) continue;
         }
         dfs_path[depth ++] = v; visit[v] = mask;
@@ -326,23 +299,17 @@ void do_search() {
 }
 
 void search() {
-    int last_answer_num = 0;
+    // int total = 0;
     for (int i=0; i<node_num; ++i) {
         if (edge_header[i] == edge_header[i+1]) continue;
-        if (!searchable_nodes[0][i] || !searchable_nodes[1][i]) continue;
         shortest_path(i);
+        // total += temp_num;
         mask ++; visit[i] = mask;
         depth = 1; dfs_path[0] = i;
         do_search();
-        if (answer_num - last_answer_num > 100000) {
-            printf("%d answer num: %d %d\n", i, answer_num, cut_count); fflush(stdout);
-            last_answer_num = answer_num;
-        }
     }
     // printf("all sp dist: %d\n", total);
 }
-
-
 
 int buffer_index = 0;
 const int max_available = MAX_EDGE * MAX_FOR_EACH_LINE - 100;
@@ -395,39 +362,25 @@ void write_to_disk() {
 int main() {
     start_time = clock();
 
-    printf("why\n"); fflush(stdout);
-
     read_input();
-    printf("node num: %d\n", node_num); fflush(stdout);
-    // for (int i=0; i<node_num; i++) printf("%d ", data_rev_mapping[i]);
-    // printf("\n");
-
-    end_time = clock();
-    printf("read: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     
 
-    node_topo_filter(false);
-    node_topo_filter(true);
-    rehash_nodes();
+    // edge_filter(true);
+    // edge_filter(false);
+    build_filter_edge(false);
 
-    printf("node num: %d\n", node_num); fflush(stdout);
-
-    filter_searchable_nodes();
+    build_edge();
+    build_rev_edge();
 
     end_time = clock();
-    printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
     search();
-    printf("answer num: %d\n", answer_num - 1);
 
     end_time = clock();
-    printf("search: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
-    end_time = clock();
-    printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
 

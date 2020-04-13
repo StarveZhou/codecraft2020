@@ -18,16 +18,10 @@ clock_t start_time, end_time;
 // 日志输出
 #include <stdio.h>
 
-// #define INPUT_PATH   "resources/topo_edge_test.txt"
-// #define INPUT_PATH   "resources/topo_test.txt"
-// #define INPUT_PATH  "resources/data1.txt"
-#define INPUT_PATH  "resources/2861665.txt"
-// #define INPUT_PATH   "resources/test_data.txt"
-#define OUTPUT_PATH  "u_output.txt"
 
 
-// #define INPUT_PATH  "/data/test_data.txt"
-// #define OUTPUT_PATH "/projects/student/result.txt"
+#define INPUT_PATH  "/data/test_data.txt"
+#define OUTPUT_PATH "/projects/student/result.txt"
 
 #define MAX_NODE               570000
 #define MAX_EDGE               285000
@@ -124,6 +118,7 @@ void read_input() {
 int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    // printf("writer fd: %d\n", writer_fd);
     if (writer_fd == -1) {
         printf("failed open!");
         exit(0);
@@ -234,7 +229,9 @@ void rehash_nodes() {
 
 
 
-
+/**
+ * not right
+ */
 bool searchable_nodes[2][MAX_NODE];
 void filter_searchable_nodes() {
     int v;
@@ -263,7 +260,7 @@ void shortest_path(int u) {
     mask ++;
     sp_dist[u] = 0;
 
-    int v, head = 0, tail = 0, height, orig_u = u;
+    int v, head = 0, tail = 0, height;
     bool reach_max;
     node_queue[tail ++] = u;
     while (head < tail) {
@@ -273,7 +270,6 @@ void shortest_path(int u) {
         for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
             v = rev_edge_topo_edges[i];
             if (visit[v] == mask) continue;
-            if (v <= orig_u) continue;
             visit[v] = mask;
             sp_dist[v] = height + 1;
             if (reach_max) continue;
@@ -334,10 +330,6 @@ void search() {
         mask ++; visit[i] = mask;
         depth = 1; dfs_path[0] = i;
         do_search();
-        if (answer_num - last_answer_num > 100000) {
-            printf("%d answer num: %d %d\n", i, answer_num, cut_count); fflush(stdout);
-            last_answer_num = answer_num;
-        }
     }
     // printf("all sp dist: %d\n", total);
 }
@@ -364,8 +356,6 @@ inline void deserialize_int(int x) {
     }
     if (buffer_index >= max_available) {
         int ret_size = write(writer_fd, buffer, buffer_index);
-        // printf("%d, %d\n", ret_size, buffer_index);
-        // assert(ret_size == buffer_index);
         buffer_index = 0;
     }
 }
@@ -386,48 +376,24 @@ void write_to_disk() {
     }
     if (buffer_index > 0) {
         int ret_size = write(writer_fd, buffer, buffer_index);
-        // printf("%d, %d\n", ret_size, buffer_index);
-        // assert(ret_size == buffer_index);
     }
 }
 
 //------------------ MBODY ---------------------
 int main() {
-    start_time = clock();
-
-    printf("why\n"); fflush(stdout);
-
-    read_input();
-    printf("node num: %d\n", node_num); fflush(stdout);
-    // for (int i=0; i<node_num; i++) printf("%d ", data_rev_mapping[i]);
-    // printf("\n");
-
-    end_time = clock();
-    printf("read: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
-    
+    read_input();    
 
     node_topo_filter(false);
     node_topo_filter(true);
     rehash_nodes();
 
-    printf("node num: %d\n", node_num); fflush(stdout);
-
     filter_searchable_nodes();
 
-    end_time = clock();
-    printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
-
     search();
-    printf("answer num: %d\n", answer_num - 1);
-
-    end_time = clock();
-    printf("search: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
-    end_time = clock();
-    printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
 
