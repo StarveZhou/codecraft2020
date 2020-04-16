@@ -4,19 +4,11 @@
 #include <stdlib.h>
 
 #include <string.h>
-#include <assert.h>
 #include <math.h>
 
 #include <algorithm>
 
 //------------------ MACRO ---------------------
-
-
-#include <time.h>
-clock_t start_time, end_time;
-
-// 日志输出
-#include <stdio.h>
 
 
 
@@ -52,7 +44,8 @@ int c_hash_map_get(c_hash_map hash, int key);
 
 
 
-char buffer[MAX_EDGE * MAX_FOR_EACH_LINE];
+char buffer[(MAX_EDGE * MAX_FOR_EACH_LINE)];
+
 int data[MAX_EDGE][3], data_num;
 
 int data_rev_mapping[MAX_NODE];
@@ -62,7 +55,6 @@ c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 void read_input() {
     int fd = open(INPUT_PATH, O_RDONLY);
     if (fd == -1) {
-        printf("open read only file failed\n");
         exit(0);
     }
     size_t size = read(fd, &buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
@@ -87,7 +79,6 @@ void read_input() {
         }
     }
     data_num = (local_data - &data[0][0]) / 3;
-    printf("data num: %d\n", data_num); fflush(stdout);
 
     for (int i=0; i<data_num; ++i) {
         if (c_hash_map_get(mapping, data[i][0]) == -1) {
@@ -118,9 +109,7 @@ void read_input() {
 int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    // printf("writer fd: %d\n", writer_fd);
     if (writer_fd == -1) {
-        printf("failed open!");
         exit(0);
     }
 }
@@ -224,14 +213,15 @@ void rehash_nodes() {
             rev_edge_topo_edges[edge_num ++] = v;
         }
         rev_edge_topo_header[u+1] = edge_num;
+        std::sort(rev_edge_topo_edges + rev_edge_topo_header[u], rev_edge_topo_edges + rev_edge_topo_header[u+1], [](int i, int j) -> bool {
+            return i > j;
+        });
     }
 }
 
 
 
-/**
- * not right
- */
+
 bool searchable_nodes[2][MAX_NODE];
 void filter_searchable_nodes() {
     int v;
@@ -242,13 +232,6 @@ void filter_searchable_nodes() {
             if (v > u) searchable_nodes[1][u] = true;
         }
     }
-
-    int total_nodes_c = 0, searchable_nodes_c = 0;
-    for (int i=0; i<node_num; ++i) {
-        total_nodes_c ++;
-        searchable_nodes_c += (searchable_nodes[0][i] == true && searchable_nodes[1][i] == true);
-    }
-    printf("total node: %d, searchable: %d\n", total_nodes_c, searchable_nodes_c);
 }
 
 #define MAX_SP_DIST       (4)
@@ -260,7 +243,7 @@ void shortest_path(int u) {
     mask ++;
     sp_dist[u] = 0;
 
-    int v, head = 0, tail = 0, height;
+    int v, head = 0, tail = 0, height, orig_u = u;
     bool reach_max;
     node_queue[tail ++] = u;
     while (head < tail) {
@@ -270,6 +253,7 @@ void shortest_path(int u) {
         for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
             v = rev_edge_topo_edges[i];
             if (visit[v] == mask) continue;
+            if (v <= orig_u) break;
             visit[v] = mask;
             sp_dist[v] = height + 1;
             if (reach_max) continue;
@@ -287,7 +271,7 @@ int answer_header[5][MAX_NODE], answer_tail[5][MAX_NODE];
 
 void extract_answer() {
     for (int i=0; i<depth; ++i) {
-        all_answer[answer_num][i] = data_rev_mapping[dfs_path[i]];
+        all_answer[answer_num][i] = dfs_path[i];
     }
     int x = depth - 3, y = dfs_path[0];
     if (answer_header[x][y] == 0) {
@@ -300,17 +284,36 @@ void extract_answer() {
 }
 
 int cut_count = 0;
+// #define MID_DIVIDER            6
+
+// 二分法
+inline int decide_search_start(int u) {
+    int start = edge_topo_header[u], end = edge_topo_header[u+1];
+    if (start == end) return start;
+    else if (edge_topo_edges[start] >= dfs_path[0]) return start;
+    else if (edge_topo_edges[end-1] < dfs_path[0]) return end;
+    else {
+        // 该步是否需要调参，在小于阈值的时候遍历，大于阈值才二分？
+        int mid; end --;
+        while (start+1 < end) {
+            mid = (start + end) >> 1;
+            if (edge_topo_edges[mid] < dfs_path[0]) start = mid;
+            else end = mid;
+        }
+        return end;
+    }
+}
 
 void do_search() {
     int u, v, mid; 
     u = dfs_path[depth-1];
-    for (int i=edge_topo_header[u]; i<edge_topo_header[u+1]; ++i) {
+    for (int i=decide_search_start(u); i<edge_topo_header[u+1]; ++i) {
         v = edge_topo_edges[i];
         if (v == dfs_path[0]) {
             if (depth >= 3 && depth <= 7) extract_answer();
             continue;
         }
-        if (v <= dfs_path[0] || visit[v] == mask) continue;
+        if (visit[v] == mask) continue;
         if (depth == 7) continue;
         if (depth + MAX_SP_DIST >= 7) {
             if (sp_dist[v] == -1 || sp_dist[v] + depth > 7) continue;
@@ -322,7 +325,6 @@ void do_search() {
 }
 
 void search() {
-    int last_answer_num = 0;
     for (int i=0; i<node_num; ++i) {
         if (edge_header[i] == edge_header[i+1]) continue;
         if (!searchable_nodes[0][i] || !searchable_nodes[1][i]) continue;
@@ -331,19 +333,43 @@ void search() {
         depth = 1; dfs_path[0] = i;
         do_search();
     }
-    // printf("all sp dist: %d\n", total);
 }
 
 
+char integer_buffer[MAX_NODE][10];
+int integer_buffer_size[MAX_NODE];
+void create_integer_buffer() {
+    int x, i=0, l, r;
+    if (data_rev_mapping[0] == 0) {
+        integer_buffer_size[0] = 1;
+        integer_buffer[0][0] = '0';
+        i ++;
+    }
+    for (; i<node_num; ++i) {
+        x = data_rev_mapping[i];
+        while (x) {
+            integer_buffer[i][integer_buffer_size[i] ++] = (x % 10) + '0';
+            x /= 10;
+        }
+        for (l=0,r=integer_buffer_size[i]-1; l<r; ++l, --r) {
+            x = integer_buffer[i][l];
+            integer_buffer[i][l] = integer_buffer[i][r];
+            integer_buffer[i][r] = x;
+        }
+    }
+}
+
+// 可以调试一下io的参数，比如使用mmap，或者更改buffer的size
+
 
 int buffer_index = 0;
-const int max_available = MAX_EDGE * MAX_FOR_EACH_LINE - 100;
+const int max_available = (MAX_EDGE * MAX_FOR_EACH_LINE) - 100;
+
 inline void deserialize_int(int x) {
     if (x == 0) {
         buffer[buffer_index ++] = '0';
         return;
     }
-
     int orignial_index = buffer_index;
     while (x) {
         buffer[buffer_index ++] = (x % 10) + '0';
@@ -354,22 +380,31 @@ inline void deserialize_int(int x) {
         buffer[i] = buffer[j];
         buffer[j] = orignial_index;
     }
+}
+
+inline void deserialize_id(int x) {
+    int orginal_index = buffer_index;
+    memcpy(buffer + buffer_index, integer_buffer[x], integer_buffer_size[x] * sizeof(char));
+    buffer_index += integer_buffer_size[x];
     if (buffer_index >= max_available) {
         int ret_size = write(writer_fd, buffer, buffer_index);
         buffer_index = 0;
     }
 }
 
+
 void write_to_disk() {
     deserialize_int(answer_num - 1);
     buffer[buffer_index ++] = '\n';
+    int x_3, x_2;
     for (int x=0; x<5; ++x) {
+        x_3 = x + 3; x_2 = x + 2;
         for (int y=0; y<node_num; ++y) {
             if (answer_header[x][y] == 0) continue;
             for (int i=answer_header[x][y]; i!=0; i=all_answer_ptr[i]) {
-                for (int j=0; j<x+3; ++j) {
-                    deserialize_int(all_answer[i][j]);
-                    buffer[buffer_index ++] = j == (x + 2) ? '\n' : ',';
+                for (int j=0; j<x_3; ++j) {
+                    deserialize_id(all_answer[i][j]);
+                    buffer[buffer_index ++] = j == x_2 ? '\n' : ',';
                 }
             }
         }
@@ -381,16 +416,20 @@ void write_to_disk() {
 
 //------------------ MBODY ---------------------
 int main() {
-    read_input();    
+
+    read_input();
+    
 
     node_topo_filter(false);
     node_topo_filter(true);
     rehash_nodes();
 
+
     filter_searchable_nodes();
 
     search();
 
+    create_integer_buffer();
     create_writer_fd();
     write_to_disk();
     close(writer_fd);

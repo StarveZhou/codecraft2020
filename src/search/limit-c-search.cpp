@@ -13,7 +13,7 @@
 
 
 #include <time.h>
-clock_t start_time, end_time;
+clock_t start_time, end_time, mid_time;
 
 // 日志输出
 #include <stdio.h>
@@ -403,10 +403,12 @@ int main() {
     end_time = clock();
     printf("search: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
+    mid_time = clock();
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
     end_time = clock();
+    printf("writing: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
     printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
