@@ -15,11 +15,12 @@ int CACHE_LINE_ALIGN mask_mt_$ = 1111;
 int CACHE_LINE_ALIGN node_queue_mt_$[MAX_NODE];
 
 int CACHE_LINE_ALIGN answer_num_mt_$ = 1, answer_contain_num_mt_$ = 0;
-int CACHE_LINE_ALIGN answer_contain_mt_$[MAX_NODE];
+
+int CACHE_LINE_ALIGN edge_topo_starter_mt_$[MAX_NODE];
 
 void shortest_path_mt_$(int u) {
     memset(sp_dist_mt_$, -1, sizeof(int) * node_num);
-    sp_dist_mt_$[u] = 0; shortest_path_now_mt_$ = u;
+    sp_dist_mt_$[u] = $; shortest_path_now_mt_$ = u;
 
     int v, head = 0, tail = 0, height, orig_u = u;
     bool reach_max;
@@ -36,23 +37,6 @@ void shortest_path_mt_$(int u) {
             if (reach_max) continue;
             node_queue_mt_$[tail ++] = v;
         }
-    }
-}
-
-inline int decide_search_start_mt_$(int u) {
-    int start = edge_topo_header[u], end = edge_topo_header[u+1];
-    if (start == end) return start;
-    else if (edge_topo_edges[start] >= dfs_path_mt_$[0]) return start;
-    else if (edge_topo_edges[end-1] < dfs_path_mt_$[0]) return end;
-    else {
-        // 该步是否需要调参，在小于阈值的时候遍历，大于阈值才二分？
-        int mid; end --;
-        while (start+1 < end) {
-            mid = (start + end) >> 1;
-            if (edge_topo_edges[mid] < dfs_path_mt_$[0]) start = mid;
-            else end = mid;
-        }
-        return end;
     }
 }
 
@@ -73,7 +57,10 @@ void extract_answer_mt_$() {
 void do_search_mt_$() {
     int u, v, mid; 
     u = dfs_path_mt_$[depth_mt_$-1];
-    for (int i=decide_search_start_mt_$(u); i<edge_topo_header[u+1]; ++i) {
+    // while (edge_topo_starter_mt_$[u] < edge_topo_header[u+1] && edge_topo_edges[edge_topo_starter_mt_$[u]] < dfs_path_mt_$[0]) {
+    //     edge_topo_starter_mt_$[u] ++;
+    // }
+    for (int i=edge_topo_starter_mt_$[u]; i<edge_topo_header[u+1]; ++i) {
         v = edge_topo_edges[i];
         if (unlikely(v == dfs_path_mt_$[0])) {
             if (depth_mt_$ >= 3 && depth_mt_$ <= 7) extract_answer_mt_$();
@@ -93,13 +80,20 @@ void do_search_mt_$() {
 }
 
 void* search_mt_$(void* args) {
+    memcpy(edge_topo_starter_mt_$, edge_topo_header, sizeof(int) * node_num);
     int u;
     while (true) {
         u = __sync_fetch_and_add(&global_search_flag, 1);
         if (u >= node_num) break;
-        answer_contain_mt_$[answer_contain_num_mt_$ ++] = u;
+        answer_contain_num_mt_$ ++;
+        global_search_assignment[u] = $;
         if (unlikely(edge_header[u] == edge_header[u+1])) continue;
         if (unlikely(!searchable_nodes[0][u])) continue;
+        for (int i=0; i<node_num; ++i) {
+            while (edge_topo_starter_mt_$[i] < edge_topo_header[i+1] &&  edge_topo_edges[edge_topo_starter_mt_$[i]] < u) {
+                ++ edge_topo_starter_mt_$[i];
+            }
+        }
         mask_mt_$ ++; visit_mt_$[u] = mask_mt_$;
         depth_mt_$ = 1; dfs_path_mt_$[0] = u;
         do_search_mt_$();
