@@ -1,84 +1,103 @@
-// io thread $
-char CACHE_LINE_ALIGN output_buffer_mt_$[ONE_INT_CHAR_SIZE * MAX_ANSW * 3 + 100];
-int CACHE_LINE_ALIGN buffer_index_mt_$ = 0;
-inline void deserialize_int_mt_$(int x) {
-    if (x == 0) {
-        output_buffer_mt_$[buffer_index_mt_$ ++] = '0';
-        return;
-    }
-    int orignial_index = buffer_index_mt_$;
-    while (x) {
-        output_buffer_mt_$[buffer_index_mt_$ ++] = (x % 10) + '0';
-        x /= 10;
-    }
-    for (int i=orignial_index, j=buffer_index_mt_$-1; i<j; ++i, --j) {
-        orignial_index = output_buffer_mt_$[i];
-        output_buffer_mt_$[i] = output_buffer_mt_$[j];
-        output_buffer_mt_$[j] = orignial_index;
-    }
-}
-inline void deserialize_id_mt_$(int x) {
-    int orginal_index = buffer_index_mt_$;
-    memcpy(output_buffer_mt_$ + buffer_index_mt_$, integer_buffer[x], integer_buffer_size[x] * sizeof(char));
-    buffer_index_mt_$ += integer_buffer_size[x];
-}
-void* deserialize_ans_mt_$(void* args) {
-    deserialize_int_mt_$(answer_num);
-    output_buffer_mt_$[buffer_index_mt_$ ++] = '\n';
-    int x = 0;
-    int x_2 = x+2, x_3 = x+3;
-    int y_0 = 0, y_1 = 0, y_2 = 0, y_3 = 0;
-    for (int y=0; y<node_num; ++y) {
-        if (global_search_assignment[y] == 0) {
-            if (likely(answer_header_mt_0[x][y_0] != 0)) {
-                for (int i=answer_header_mt_0[x][y_0]; i!=0; i=all_answer_ptr_mt_0[i]) {
-                    deserialize_id_mt_$(y);
-                    output_buffer_mt_$[buffer_index_mt_$] += ',';
-                    for (int j=0; j<x_3; ++j) {
-                        deserialize_id_mt_$(all_answer_mt_0[i][j]);
-                        output_buffer_mt_$[buffer_index_mt_$ ++] = j == x_2 ? '\n' : ',';
-                    }
-                }
-            }
-            ++ y_0;
-        } else if (global_search_assignment[y] == 1) {
-            if (likely(answer_header_mt_1[x][y_1] != 0)) {
-                for (int i=answer_header_mt_1[x][y_1]; i!=0; i=all_answer_ptr_mt_1[i]) {
-                    deserialize_id_mt_$(y);
-                    output_buffer_mt_$[buffer_index_mt_$] += ',';
-                    for (int j=0; j<x_3; ++j) {
-                        deserialize_id_mt_$(all_answer_mt_1[i][j]);
-                        output_buffer_mt_$[buffer_index_mt_$ ++] = j == x_2 ? '\n' : ',';
-                    }
-                }
-            }
-            ++ y_1;
-        } else if (global_search_assignment[y] == 2) {
-            if (likely(answer_header_mt_2[x][y_2] != 0)) {
-                for (int i=answer_header_mt_2[x][y_2]; i!=0; i=all_answer_ptr_mt_2[i]) {
-                    deserialize_id_mt_$(y);
-                    output_buffer_mt_$[buffer_index_mt_$] += ',';
-                    for (int j=0; j<x_3; ++j) {
-                        deserialize_id_mt_$(all_answer_mt_2[i][j]);
-                        output_buffer_mt_$[buffer_index_mt_$ ++] = j == x_2 ? '\n' : ',';
-                    }
-                }
-            }
-            ++ y_2;
-        } else {
-            if (likely(answer_header_mt_3[x][y_3] != 0)) {
-                for (int i=answer_header_mt_3[x][y_3]; i!=0; i=all_answer_ptr_mt_3[i]) {
-                    deserialize_id_mt_$(y);
-                    output_buffer_mt_$[buffer_index_mt_$] += ',';
-                    for (int j=0; j<x_3; ++j) {
-                        deserialize_id_mt_$(all_answer_mt_3[i][j]);
-                        output_buffer_mt_$[buffer_index_mt_$ ++] = j == x_2 ? '\n' : ',';
-                    }
-                }
-            }
-            ++ y_3;
+// search $
+
+int CACHE_LINE_ALIGN sp_dist_mt_$[MAX_NODE];
+int CACHE_LINE_ALIGN shortest_path_now_mt_$ = -1;
+
+int CACHE_LINE_ALIGN depth_mt_$, dfs_path_mt_$[8];
+int CACHE_LINE_ALIGN all_answer_mt_$[MAX_ANSW + 1][7];
+int CACHE_LINE_ALIGN all_answer_ptr_mt_$[MAX_ANSW];
+int CACHE_LINE_ALIGN answer_header_mt_$[5][MAX_NODE];
+int CACHE_LINE_ALIGN answer_tail_mt_$[5][MAX_NODE];
+
+int CACHE_LINE_ALIGN visit_mt_$[MAX_NODE];
+int CACHE_LINE_ALIGN mask_mt_$ = 1111;
+
+int CACHE_LINE_ALIGN node_queue_mt_$[MAX_NODE];
+
+int CACHE_LINE_ALIGN answer_num_mt_$ = 1, answer_contain_num_mt_$ = 0;
+// int CACHE_LINE_ALIGN answer_contain_mt_$[MAX_NODE];
+
+void shortest_path_mt_$(int u) {
+    memset(sp_dist_mt_$, -1, sizeof(int) * node_num);
+    sp_dist_mt_$[u] = 0; shortest_path_now_mt_$ = u;
+
+    int v, head = 0, tail = 0, height, orig_u = u;
+    bool reach_max;
+    node_queue_mt_$[tail ++] = u;
+    while (unlikely(head < tail)) {
+        u = node_queue_mt_$[head ++];
+        height = sp_dist_mt_$[u];
+        reach_max = height == MAX_SP_DIST-1;
+        for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
+            v = rev_edge_topo_edges[i];
+            if (sp_dist_mt_$[v] != -1) continue;
+            if (v <= orig_u) break;
+            sp_dist_mt_$[v] = height + 1;
+            if (reach_max) continue;
+            node_queue_mt_$[tail ++] = v;
         }
+    }
+}
+
+int CACHE_LINE_ALIGN edge_topo_starter_mt_$[MAX_NODE];
+inline int decide_search_start_mt_$(int u) {
+    while (edge_topo_starter_mt_$[u] < edge_topo_header[u+1] && edge_topo_edges[edge_topo_starter_mt_$[u]] < dfs_path_mt_$[0]) {
+        edge_topo_starter_mt_$[u] ++;
+    }
+    return edge_topo_starter_mt_$[u];
+}
+
+void extract_answer_mt_$() {
+    for (int i=0; i<depth_mt_$; ++i) {
+        all_answer_mt_$[answer_num_mt_$][i] = dfs_path_mt_$[i];
+    }
+    int x = depth_mt_$ - 3, y = dfs_path_mt_$[0];
+    if (unlikely(answer_header_mt_$[x][y] == 0)) {
+        answer_header_mt_$[x][y] = answer_tail_mt_$[x][y] = answer_num_mt_$;
+    } else {
+        all_answer_ptr_mt_$[answer_tail_mt_$[x][y]] = answer_num_mt_$;
+        answer_tail_mt_$[x][y] = answer_num_mt_$;
+    }
+    answer_num_mt_$ ++;
+}
+
+void do_search_mt_$() {
+    int u, v, mid; 
+    u = dfs_path_mt_$[depth_mt_$-1];
+    for (int i=decide_search_start_mt_$(u); i<edge_topo_header[u+1]; ++i) {
+        v = edge_topo_edges[i];
+        if (unlikely(v == dfs_path_mt_$[0])) {
+            if (depth_mt_$ >= 3 && depth_mt_$ <= 7) extract_answer_mt_$();
+            continue;
+        }
+        // if (v < dfs_path[0]) continue;
+        if (visit_mt_$[v] == mask_mt_$) continue;
+        if (depth_mt_$ == 7) continue;
+        if (likely(depth_mt_$ + MAX_SP_DIST >= 7)) {
+            if (unlikely(shortest_path_now_mt_$ != dfs_path_mt_$[0])) shortest_path_mt_$(dfs_path_mt_$[0]);
+            if (likely(sp_dist_mt_$[v] == -1 || sp_dist_mt_$[v] + depth_mt_$ > 7)) continue;
+        }
+        dfs_path_mt_$[depth_mt_$ ++] = v; visit_mt_$[v] = mask_mt_$;
+        do_search_mt_$();
+        depth_mt_$ --; visit_mt_$[v] = 0;
+    }
+}
+
+void* search_mt_$(void* args) {
+    memcpy(edge_topo_starter_mt_$, edge_topo_header, sizeof(int) * node_num);
+    int u;
+    while (true) {
+        u = __sync_fetch_and_add(&global_search_flag, 1);
+        if (u >= node_num) break;
+        // answer_contain_mt_$[answer_contain_num_mt_$ ++] = u;
+        global_search_assignment[u] = $;
+        if (unlikely(edge_header[u] == edge_header[u+1])) continue;
+        if (unlikely(!searchable_nodes[0][u])) continue;
+        mask_mt_$ ++; visit_mt_$[u] = mask_mt_$;
+        depth_mt_$ = 1; dfs_path_mt_$[0] = u;
+        do_search_mt_$();
     }
     return NULL;
 }
-// end io thread $
+
+// end thread $
