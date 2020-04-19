@@ -371,6 +371,7 @@ inline void extract_4_answer() {
     answer_4[answer_4_buffer_num ++] = '\n';
 }
 
+
 int backward_3_path_header[MAX_NODE];
 int backward_3_path_ptr[MAX_NODE];
 int backward_3_path_value[PATH_PAR_3][2];
@@ -383,11 +384,6 @@ inline void extract_backward_3_path() {
 }
 
 void backward_dfs() {
-    // printf("into backward dfs: %d %d\n** ", data_rev_mapping[dfs_path[dfs_path_num-1]], dfs_path_num);
-    // for (int i=0; i<dfs_path_num; ++i) {
-    //     printf("%d ", data_rev_mapping[dfs_path[i]]);
-    // }
-    // printf("\n");
     int u, v, original_path_num = dfs_path_num;
     u = dfs_path[dfs_path_num - 1]; dfs_path_num ++;
     for (int i=rev_edge_topo_header[u]; i<rev_edge_topo_header[u+1]; ++i) {
@@ -406,46 +402,39 @@ void backward_dfs() {
     dfs_path_num --;
 }
 
-int forward_2_path_header[MAX_NODE];
-int forward_2_path_ptr[MAX_NODE];
-int forward_2_path_value[PATH_PAR_2];
+int forward_2_path_value[PATH_PAR_2][2];
 int forward_2_num = 0;
 inline void extract_forward_2_path() {
-    forward_2_path_value[forward_2_num] = dfs_path[1];
-    forward_2_path_ptr[forward_2_num] = forward_2_path_header[dfs_path[2]];
-    forward_2_path_header[dfs_path[2]] = forward_2_num ++;
+    forward_2_path_value[forward_2_num][0] = dfs_path[1];
+    forward_2_path_value[forward_2_num][1] = dfs_path[2];
+    forward_2_num ++;
 }
 
-int forward_3_path_header[MAX_NODE];
-int forward_3_path_ptr[MAX_NODE];
-int forward_3_path_value[PATH_PAR_3][2];
+int forward_3_path_value[PATH_PAR_3][3];
 int forward_3_num = 0;
 inline void extract_forward_3_path() {
     forward_3_path_value[forward_3_num][0] = dfs_path[1];
     forward_3_path_value[forward_3_num][1] = dfs_path[2];
-    forward_3_path_ptr[forward_3_num] = forward_3_path_header[dfs_path[3]];
-    forward_3_path_header[dfs_path[3]] = forward_3_num ++;
+    forward_3_path_value[forward_3_num][2] = dfs_path[3];
+    forward_3_num ++;
 }
 
-int forward_4_path_header[MAX_NODE];
-int forward_4_path_ptr[MAX_NODE];
-int forward_4_path_value[PATH_PAR_3][3];
+int forward_4_path_value[PATH_PAR_3][4];
 int forward_4_num = 0;
 inline void extract_forward_4_path() {
     forward_4_path_value[forward_4_num][0] = dfs_path[1];
     forward_4_path_value[forward_4_num][1] = dfs_path[2];
     forward_4_path_value[forward_4_num][2] = dfs_path[3];
-    forward_4_path_ptr[forward_4_num] = forward_4_path_header[dfs_path[4]];
-    forward_4_path_header[dfs_path[4]] = forward_4_num ++;
+    forward_4_path_value[forward_4_num][3] = dfs_path[4];
+    forward_4_num ++;
 }
 
 void forward_dfs() {
     int u, v, original_path_num = dfs_path_num;
     u = dfs_path[dfs_path_num - 1];  dfs_path_num ++;
-    // while (edge_topo_starter[u] < edge_topo_header[u+1] && edge_topo_edges[edge_topo_starter[u]] < dfs_path[0]) edge_topo_starter[u] ++;
+    while (edge_topo_starter[u] < edge_topo_header[u+1] && edge_topo_edges[edge_topo_starter[u]] < dfs_path[0]) edge_topo_starter[u] ++;
     for (int i=edge_topo_starter[u]; i<edge_topo_header[u+1]; ++i) {
         v = edge_topo_edges[i];
-        if (v < dfs_path[0]) continue;
         if (v == dfs_path[0]) {
             if (original_path_num == 3) extract_3_answer();
             if (original_path_num == 4) extract_4_answer();
@@ -453,12 +442,12 @@ void forward_dfs() {
         }
         if (visit[v] == mask) continue;
         dfs_path[original_path_num] = v; 
-        if (original_path_num == 2) extract_forward_2_path();
-        if (original_path_num == 3) extract_forward_3_path();
-        if (original_path_num == 4) {
-            extract_forward_4_path();
-            continue;
+        if (backward_3_path_header[v] != -1) {
+            if (original_path_num == 2) extract_forward_2_path();
+            if (original_path_num == 3) extract_forward_3_path();
+            if (original_path_num == 4) extract_forward_4_path();
         }
+        if (original_path_num == 4) continue;
         visit[v] = mask;
         forward_dfs();
         visit[v] = 0;
@@ -466,18 +455,12 @@ void forward_dfs() {
     dfs_path_num --;
 }
 
-int sorted_forward_2_path[PATH_PAR_2];
-int sorted_forward_3_path[PATH_PAR_3][2];
-int sorted_forward_4_path[PATH_PAR_4][3];
 int sorted_backward_3_path[PATH_PAR_3][2];
 int sorted_backward_3_path_fin[PATH_PAR_3][2];
 int sorted_backward_id[PATH_PAR_3];
 void sort_out(int begin_with) {
     int i;
     // printf("have searched: %d %d %d %d\n", forward_2_num, forward_3_num, forward_4_num, backward_3_num);
-    forward_2_path_header[node_num] = forward_2_num;
-    forward_3_path_header[node_num] = forward_3_num;
-    forward_4_path_header[node_num] = forward_4_num;
     backward_3_path_header[node_num] = backward_3_num;
     memcpy(sorted_backward_id, std_id_arr, sizeof(int) * backward_3_num);
     // 循环打开成4个，增加cache利用率
@@ -499,56 +482,8 @@ void sort_out(int begin_with) {
             sorted_backward_3_path_fin[i][0] = sorted_backward_3_path[sorted_backward_id[i]][0];
             sorted_backward_3_path_fin[i][1] = sorted_backward_3_path[sorted_backward_id[i]][1];
         }
-
-
-        for (i=forward_2_path_header[u]; i!=-1; i=forward_2_path_ptr[i]) {
-            sorted_forward_2_path[-- forward_2_num] = forward_2_path_value[i];
-        }
-        forward_2_path_header[u] = forward_2_num;
-
-        for (i=forward_3_path_header[u]; i!=-1; i=forward_3_path_ptr[i]) {
-            -- forward_3_num;
-            sorted_forward_3_path[forward_3_num][0] = forward_3_path_value[i][0];
-            sorted_forward_3_path[forward_3_num][1] = forward_3_path_value[i][1];
-        }
-        forward_3_path_header[u] = forward_3_num;
-
-        for (i=forward_4_path_header[u]; i!=-1; i=forward_4_path_ptr[i]) {
-            -- forward_4_num;
-            sorted_forward_4_path[forward_4_num][0] = forward_4_path_value[i][0];
-            sorted_forward_4_path[forward_4_num][1] = forward_4_path_value[i][1];
-            sorted_forward_4_path[forward_4_num][2] = forward_4_path_value[i][2];
-        }
-        forward_4_path_header[u] = forward_4_num;
     }
-    // if (begin_with == 0) {
-    //     printf("after searched: %d %d %d %d\n", forward_2_num, forward_3_num, forward_4_num, backward_3_num);
-    //     printf("#### backward ret:\n");
-    //     for (int i=0; i<node_num; ++i) {
-    //         printf("@@@@ end with: %d, %d @@@@@\n", i, data_rev_mapping[i]);
-    //         for (int j=backward_3_path_header[i]; j<backward_3_path_header[i+1]; ++j) {
-    //             printf("- %d ", data_rev_mapping[sorted_backward_3_path_fin[j][0]]);
-    //             printf("%d ", data_rev_mapping[sorted_backward_3_path_fin[j][1]]);
-    //             printf("%d \n", data_rev_mapping[i]);
-    //         }
-    //         for (int j=forward_2_path_header[i]; j<forward_2_path_header[i+1]; ++j) {
-    //             printf("+ %d ", data_rev_mapping[sorted_forward_2_path[j]]);
-    //             printf("%d\n", data_rev_mapping[i]);
-    //         }
-    //         for (int j=forward_3_path_header[i]; j<forward_3_path_header[i+1]; ++j) {
-    //             printf("* %d ", data_rev_mapping[sorted_forward_3_path[j][0]]);
-    //             printf("%d ", data_rev_mapping[sorted_forward_3_path[j][1]]);
-    //             printf("%d\n", data_rev_mapping[i]);
-    //         }
-    //         for (int j=forward_4_path_header[i]; j<forward_4_path_header[i+1]; ++j) {
-    //             printf("= %d ", data_rev_mapping[sorted_forward_4_path[j][0]]);
-    //             printf("%d ", data_rev_mapping[sorted_forward_4_path[j][1]]);
-    //             printf("%d ", data_rev_mapping[sorted_forward_4_path[j][2]]);
-    //             printf("%d\n", data_rev_mapping[i]);
-    //         }
-    //     }
-    // }
-}
+} 
 
 int answer_5[MAX_ANSW][5];
 int answer_6[MAX_ANSW][6];
@@ -557,77 +492,73 @@ int answer_5_num = 0, answer_6_num = 0, answer_7_num = 0;
 void match(int begin_with) {
     int u, v, i, j;
 
-    // 循环展开
-    for (v=0; v<node_num; ++v) {
-        if (backward_3_path_header[v] == backward_3_path_header[v+1]) continue;
-
-        for (i=forward_2_path_header[v]; i<forward_2_path_header[v+1]; ++i) {
-            for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
-                if (sorted_backward_3_path_fin[j][0] == sorted_forward_2_path[i] || sorted_backward_3_path_fin[j][1] == sorted_forward_2_path[i]) {
-                    continue;
-                }
-                answer_5[answer_5_num][0] = begin_with;
-                answer_5[answer_5_num][1] = sorted_forward_2_path[i];
-                answer_5[answer_5_num][2] = v;
-                answer_5[answer_5_num][3] = sorted_backward_3_path_fin[j][1];
-                answer_5[answer_5_num][4] = sorted_backward_3_path_fin[j][0];
-                answer_5_num ++;
+    for (i=0; i<forward_2_num; ++i) {
+        v = forward_2_path_value[i][1];
+        for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
+            if (sorted_backward_3_path_fin[j][0] == forward_2_path_value[i][0] || sorted_backward_3_path_fin[j][1] == forward_2_path_value[i][0]) {
+                continue;
             }
-        }
-        
-
-        for (i=forward_3_path_header[v]; i<forward_3_path_header[v+1]; ++i) {
-            mask ++;
-            visit[sorted_forward_3_path[i][0]] = visit[sorted_forward_3_path[i][1]] = mask;
-            for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
-                if (visit[sorted_backward_3_path_fin[j][0]] == mask || visit[sorted_backward_3_path_fin[j][1]]) {
-                    continue;
-                }
-                answer_6[answer_6_num][0] = begin_with;
-                answer_6[answer_6_num][1] = sorted_forward_3_path[i][0];
-                answer_6[answer_6_num][2] = sorted_forward_3_path[i][1];
-                answer_6[answer_6_num][3] = v;
-                answer_6[answer_6_num][4] = sorted_backward_3_path_fin[j][1];
-                answer_6[answer_6_num][5] = sorted_backward_3_path_fin[j][0];
-                answer_6_num ++;
-            }
-        }
-
-        for (i=forward_4_path_header[v]; i<forward_4_path_header[v+1]; ++i) {
-            mask ++;
-            visit[sorted_forward_4_path[i][0]] = visit[sorted_forward_4_path[i][1]] = visit[sorted_forward_4_path[i][2]] = mask;
-            for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
-                if (visit[sorted_backward_3_path_fin[j][0]] == mask || visit[sorted_backward_3_path_fin[j][1]]) {
-                    continue;
-                }
-                answer_7[answer_7_num][0] = begin_with;
-                answer_7[answer_7_num][1] = sorted_forward_4_path[i][0];
-                answer_7[answer_7_num][2] = sorted_forward_4_path[i][1];
-                answer_7[answer_7_num][3] = sorted_forward_4_path[i][2];
-                answer_7[answer_7_num][4] = v;
-                answer_7[answer_7_num][5] = sorted_backward_3_path_fin[j][1];
-                answer_7[answer_7_num][6] = sorted_backward_3_path_fin[j][0];
-                answer_7_num ++;
-            }
+            answer_5[answer_5_num][0] = begin_with;
+            answer_5[answer_5_num][1] = forward_2_path_value[i][0];
+            answer_5[answer_5_num][2] = v;
+            answer_5[answer_5_num][3] = sorted_backward_3_path_fin[j][1];
+            answer_5[answer_5_num][4] = sorted_backward_3_path_fin[j][0];
+            answer_5_num ++;
         }
     }
+
+    for (i=0; i<forward_3_num; ++i) {
+        v = forward_3_path_value[i][2];
+        mask ++;
+        visit[forward_3_path_value[i][0]] = visit[forward_3_path_value[i][1]] = mask;
+        for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
+            if (visit[sorted_backward_3_path_fin[j][0]] == mask || visit[sorted_backward_3_path_fin[j][1]] == mask) {
+                continue;
+            }
+            answer_6[answer_6_num][0] = begin_with;
+            answer_6[answer_6_num][1] = forward_3_path_value[i][0];
+            answer_6[answer_6_num][2] = forward_3_path_value[i][1];
+            answer_6[answer_6_num][3] = v;
+            answer_6[answer_6_num][4] = sorted_backward_3_path_fin[j][1];
+            answer_6[answer_6_num][5] = sorted_backward_3_path_fin[j][0];
+            answer_6_num ++;
+        }
+    }
+
+    for (i=0; i<forward_4_num; ++i) {
+        v = forward_4_path_value[i][3];
+        mask ++;
+        visit[forward_4_path_value[i][0]] = visit[forward_4_path_value[i][1]] = visit[forward_4_path_value[i][2]] = mask;
+        for (j=backward_3_path_header[v]; j<backward_3_path_header[v+1]; ++j) {
+            if (visit[sorted_backward_3_path_fin[j][0]] == mask || visit[sorted_backward_3_path_fin[j][1]] == mask) {
+                continue;
+            }
+            answer_7[answer_7_num][0] = begin_with;
+            answer_7[answer_7_num][1] = forward_4_path_value[i][0];
+            answer_7[answer_7_num][2] = forward_4_path_value[i][1];
+            answer_7[answer_7_num][3] = forward_4_path_value[i][2];
+            answer_7[answer_7_num][4] = v;
+            answer_7[answer_7_num][5] = sorted_backward_3_path_fin[j][1];
+            answer_7[answer_7_num][6] = sorted_backward_3_path_fin[j][0];
+            answer_7_num ++;
+        }
+    }
+
+    
     // printf("match: %d %d %d\n", answer_5_num, answer_6_num, answer_7_num);
 }
 
 void do_search_mim(int begin_with) {
     forward_2_num = forward_3_num = forward_4_num = backward_3_num = 0;
     // 可以不用memset，用一个visit就好了
-    memset(forward_2_path_header, -1, sizeof_int_mul_node_num);
-    memset(forward_3_path_header, -1, sizeof_int_mul_node_num);
-    memset(forward_4_path_header, -1, sizeof_int_mul_node_num);
     memset(backward_3_path_header, -1, sizeof_int_mul_node_num);
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path[0] = begin_with; dfs_path_num = 1;
     mask ++; visit[begin_with] = mask;
-    forward_dfs();
+    backward_dfs();
     dfs_path[0] = begin_with; dfs_path_num = 1;
     mask ++; visit[begin_with] = mask;
-    backward_dfs();
+    forward_dfs();
     sort_out(begin_with);
     match(begin_with);
 }
