@@ -6,31 +6,15 @@
 #include <pthread.h>
 
 #include <string.h>
-#include <assert.h>
-#include <math.h>
 
 #include <algorithm>
 
 //------------------ MACRO ---------------------
 
 
-#include <time.h>
-clock_t start_time, end_time, mid_time;
 
-// 日志输出
-#include <stdio.h>
-
-// #define INPUT_PATH   "resources/topo_edge_test.txt"
-// #define INPUT_PATH   "resources/topo_test.txt"
-// #define INPUT_PATH  "resources/data1.txt"
-#define INPUT_PATH  "resources/2861665.txt"
-// #define INPUT_PATH   "resources/test_data.txt"
-// #define INPUT_PATH   "resources/pre_test.txt"
-#define OUTPUT_PATH  "mim.txt"
-
-
-// #define INPUT_PATH  "/data/test_data.txt"
-// #define OUTPUT_PATH "/projects/student/result.txt"
+#define INPUT_PATH  "/data/test_data.txt"
+#define OUTPUT_PATH "/projects/student/result.txt"
 
 #define MAX_NODE               570000
 #define MAX_EDGE               285056
@@ -81,7 +65,6 @@ c_hash_map_t mapping_t; c_hash_map mapping = &mapping_t;
 void read_input() {
     int fd = open(INPUT_PATH, O_RDONLY);
     if (fd == -1) {
-        printf("open read only file failed\n");
         exit(0);
     }
     size_t size = read(fd, &buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
@@ -106,7 +89,6 @@ void read_input() {
         }
     }
     data_num = (local_data - &data[0][0]) / 3;
-    printf("data num: %d\n", data_num); fflush(stdout);
 
     for (int i=0; i<data_num; ++i) {
         if (unlikely(c_hash_map_get(mapping, data[i][0]) == -1)) {
@@ -138,7 +120,6 @@ int writer_fd;
 void create_writer_fd() {
     writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (writer_fd == -1) {
-        printf("failed open!");
         exit(0);
     }
 }
@@ -632,15 +613,8 @@ void write_to_disk() {
 //------------------ MBODY ---------------------
 // 答案是错的
 int main() {
-    start_time = clock();
 
     read_input();
-    printf("node num: %d\n", node_num); fflush(stdout);
-    // for (int i=0; i<node_num; i++) printf("%d ", data_rev_mapping[i]);
-    // printf("\n");
-
-    end_time = clock();
-    printf("read: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     
 
     node_topo_filter(false);
@@ -648,38 +622,19 @@ int main() {
     rehash_nodes();
     
 
-    printf("node num: %d\n", node_num); fflush(stdout);
-
     filter_searchable_nodes();
     create_integer_buffer();
 
     sizeof_int_mul_node_num = sizeof(int) * node_num;
-    for (int i=0; i<PATH_PAR_3; ++i) std_id_arr[i] = i;
 
-    end_time = clock();
-    printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
-
-    mid_time = clock();
     search();
     answer_num = answer_3_num + answer_4_num + answer_5_num + answer_6_num + answer_7_num;
-    printf("answer: %d\n", answer_num);
-    
-    end_time = clock();
-    printf("searching: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
 
     
-
-    end_time = clock();
-    printf("create integer buffer: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
-
-    mid_time = clock();
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
 
-    end_time = clock();
-    printf("writing: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
-    printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
 

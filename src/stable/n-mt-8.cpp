@@ -7,8 +7,6 @@
 
 #include <string.h>
 
-#include <algorithm>
-
 //------------------ MACRO ---------------------
 
 
@@ -39,6 +37,11 @@ int c_hash_map_size(c_hash_map hash);
 void c_hash_map_insert(c_hash_map hash, int key, int value);
 void c_hash_map_replace(c_hash_map hash, int key, int value);
 int c_hash_map_get(c_hash_map hash, int key);
+// ***************************************************************
+
+void c_sort(int* arr, int st, int ed);
+void c_sort_rev(int* arr, int st, int ed);
+
 // ***************************************************************
 
 
@@ -91,7 +94,8 @@ void read_input() {
         }
     }
 
-    std::sort(data_rev_mapping, data_rev_mapping + node_num);
+    // std::sort(data_rev_mapping, data_rev_mapping + node_num);
+    c_sort(data_rev_mapping, 0, node_num);
 
     for (int i=0; i<node_num; ++i) {
         c_hash_map_replace(mapping, data_rev_mapping[i], i);
@@ -197,7 +201,8 @@ void rehash_nodes() {
         if (edge_topo_header[u+1] == edge_topo_header[u] + 1) {
             continue;
         } else {
-            std::sort(edge_topo_edges + edge_topo_header[u], edge_topo_edges + edge_topo_header[u+1]);
+            // std::sort(edge_topo_edges + edge_topo_header[u], edge_topo_edges + edge_topo_header[u+1]);
+            c_sort(edge_topo_edges, edge_topo_header[u], edge_header[u+1]);
         }
     }
 
@@ -220,9 +225,10 @@ void rehash_nodes() {
             rev_edge_topo_edges[edge_num ++] = v;
         }
         rev_edge_topo_header[u+1] = edge_num;
-        std::sort(rev_edge_topo_edges + rev_edge_topo_header[u], rev_edge_topo_edges + rev_edge_topo_header[u+1], [](int i, int j) -> bool {
-            return i > j;
-        });
+        // std::sort(rev_edge_topo_edges + rev_edge_topo_header[u], rev_edge_topo_edges + rev_edge_topo_header[u+1], [](int i, int j) -> bool {
+        //     return i > j;
+        // });
+        c_sort_rev(rev_edge_topo_edges, rev_edge_topo_header[u], rev_edge_topo_header[u+1]);
     }
 }
 
@@ -2802,4 +2808,63 @@ int c_hash_map_get(c_hash_map hash, int key) {
         }
     }
     return -1;
+}
+
+
+inline void swap_int(int* x, int* y) {
+    if (x == y) return;
+    *x ^= *y; *y ^= *x; *x ^= *y;
+}
+
+/**
+ * NOTE: l and r are inclusive
+ */
+void qsort(int* arr, int l, int r) {
+    if (r-l == 1) {
+        if (arr[l] > arr[r]) swap_int(arr+l, arr+r);
+        return;
+    }
+    int i, j, mid;
+    i = l;
+    j = r;
+    mid = arr[(i+j)/2];
+    while (i < j) {
+        while (arr[i] < mid) ++ i;
+        while (arr[j] > mid) -- j;
+        if (i <= j) {
+            swap_int(arr + i, arr + j);
+            ++ i; -- j;
+        }
+    }
+    if (i < r) qsort(arr, i, r);
+    if (l < j) qsort(arr, l, j);
+}
+
+void qsort_rev(int* arr, int l, int r) {
+    if (r-l == 1) {
+        if (arr[l] < arr[r]) swap_int(arr+l, arr+r);
+        return;
+    }
+    int i, j, mid;
+    i = l;
+    j = r;
+    mid = arr[(i+j)/2];
+    while (i < j) {
+        while (arr[i] > mid) ++ i;
+        while (arr[j] < mid) -- j;
+        if (i <= j) {
+            swap_int(arr + i, arr + j);
+            ++ i; -- j;
+        }
+    }
+    if (i < r) qsort(arr, i, r);
+    if (l < j) qsort(arr, l, j);
+}
+
+void c_sort(int* arr, int st, int ed) {
+    qsort(arr, st, ed-1);
+}
+
+void c_sort_rev(int* arr, int st, int ed) {
+    qsort_rev(arr, st, ed-1);
 }

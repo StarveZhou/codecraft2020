@@ -10,11 +10,23 @@
 #include <algorithm>
 
 //------------------ MACRO ---------------------
+#include <time.h>
+clock_t start_time, end_time, mid_time;
+
+// 日志输出
+#include <stdio.h>
+
+// #define INPUT_PATH   "resources/topo_edge_test.txt"
+// #define INPUT_PATH   "resources/topo_test.txt"
+// #define INPUT_PATH  "resources/data1.txt"
+#define INPUT_PATH  "resources/2861665.txt"
+// #define INPUT_PATH   "resources/test_data.txt"
+// #define INPUT_PATH   "resources/pre_test.txt"
+#define OUTPUT_PATH  "mt-8.txt"
 
 
-
-#define INPUT_PATH  "/data/test_data.txt"
-#define OUTPUT_PATH "/projects/student/result.txt"
+// #define INPUT_PATH  "/data/test_data.txt"
+// #define OUTPUT_PATH "/projects/student/result.txt"
 
 #define MAX_NODE               570000
 #define MAX_EDGE               285056
@@ -2728,14 +2740,29 @@ void write_to_disk() {
 
 //------------------ MBODY ---------------------
 int main() {
+    start_time = clock();
+
     read_input();
+    printf("node num: %d\n", node_num); fflush(stdout);
+    // for (int i=0; i<node_num; i++) printf("%d ", data_rev_mapping[i]);
+    // printf("\n");
+
+    end_time = clock();
+    printf("read: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     
 
     node_topo_filter(false);
     node_topo_filter(true);
     rehash_nodes();
 
+    printf("node num: %d\n", node_num); fflush(stdout);
+
     filter_searchable_nodes();
+
+    end_time = clock();
+    printf("build edge: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
+
+    mid_time = clock();
     // multi search
     pthread_t search_thread_ptr[8];
     
@@ -2758,14 +2785,33 @@ int main() {
     pthread_join(search_thread_ptr[7], NULL);
 
     answer_num = answer_num_mt_0 + answer_num_mt_1 + answer_num_mt_2 + answer_num_mt_3 + answer_num_mt_4 + answer_num_mt_5 + answer_num_mt_6 + answer_num_mt_7 - 8;
- 
+
+    printf("answer num: %d\n", answer_num);
+    printf("0 handle: %d %d\n", answer_contain_num_mt_0, answer_num_mt_0);
+    printf("1 handle: %d %d\n", answer_contain_num_mt_1, answer_num_mt_1);
+    printf("2 handle: %d %d\n", answer_contain_num_mt_2, answer_num_mt_2);
+    printf("3 handle: %d %d\n", answer_contain_num_mt_3, answer_num_mt_3);
+    printf("0 handle: %d %d\n", answer_contain_num_mt_4, answer_num_mt_4);
+    printf("1 handle: %d %d\n", answer_contain_num_mt_5, answer_num_mt_5);
+    printf("2 handle: %d %d\n", answer_contain_num_mt_6, answer_num_mt_6);
+    printf("3 handle: %d %d\n", answer_contain_num_mt_7, answer_num_mt_7);
+    end_time = clock();
+    printf("searching: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
+
+    
 
     create_integer_buffer();
+    end_time = clock();
+    printf("create integer buffer: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
 
+    mid_time = clock();
     create_writer_fd();
     write_to_disk();
     close(writer_fd);
 
+    end_time = clock();
+    printf("writing: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
+    printf("running: %d ms\n", (int)(end_time - start_time)); fflush(stdout);
     return 0;
 }
 
