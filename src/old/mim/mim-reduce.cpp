@@ -604,85 +604,85 @@ int answer_num = 0;
 int io_thr_assign[IO_THR][CACHE_FILL];
 int io_thr_id[CACHE_FILL];
 
-char output_buffer[IO_THR][MAX_ANSW * ONE_INT_CHAR_SIZE];
-int output_buffer_num[IO_THR][CACHE_FILL];
-void* write_to_disk_thr(void* args) {
-    int thr_id = *((int*)args), from, to;
-    size_t rub;
-    if (thr_id == 0) {
-        deserialize_int(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_num);
-        output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
-    }
+// char output_buffer[IO_THR][MAX_ANSW * ONE_INT_CHAR_SIZE];
+// int output_buffer_num[IO_THR][CACHE_FILL];
+// void* write_to_disk_thr(void* args) {
+//     int thr_id = *((int*)args), from, to;
+//     size_t rub;
+//     if (thr_id == 0) {
+//         deserialize_int(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_num);
+//         output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
+//     }
 
-    from = io_thr_assign[thr_id][1]; to = io_thr_assign[thr_id][2];
-    int tid, length, i, j, k;
+//     from = io_thr_assign[thr_id][1]; to = io_thr_assign[thr_id][2];
+//     int tid, length, i, j, k;
 
-    switch (io_thr_assign[thr_id][0])
-    {
-    case 4:
-        for (i=0; i<node_num; ++i) {
-            tid = global_search_assignment[i];
-            if (tid < 0) continue;
-            length = answer_3_to[tid][i] - answer_3_from[tid][i];
-            memcpy(output_buffer[thr_id] + output_buffer_num[thr_id][0], answer_3[tid] + answer_3_from[tid][i], length);
-            output_buffer_num[thr_id][0] += length;
-        }
-        for (i=0; i<node_num; ++i) {
-            tid = global_search_assignment[i];
-            if (tid < 0) continue;
-            length = answer_4_to[tid][i] - answer_4_from[tid][i];
-            memcpy(output_buffer[thr_id] + output_buffer_num[thr_id][0], answer_4[tid] + answer_4_from[tid][i], length);
-            output_buffer_num[thr_id][0] += length;
-        }
-        break;
-    case 5:
-        for (i=from; i<to; ++i) {
-            tid = global_search_assignment[i];
-            if (tid < 0) continue;
-            for (j=answer_5_from[tid][i]; j<answer_5_to[tid][i]; ++j) {
-                for (k=0; k<4; ++k) {
-                    deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_5[tid][j][k]);
-                    output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
-                }
-                deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_5[tid][j][4]);
-                output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
-            }
-        }
-        break;
-    case 6:
-        for (i=from; i<to; ++i) {
-            tid = global_search_assignment[i];
-            if (tid < 0) continue;
-            for (j=answer_6_from[tid][i]; j<answer_6_to[tid][i]; ++j) {
-                for (k=0; k<5; ++k) {
-                    deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_6[tid][j][k]);
-                    output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
-                }
-                deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_6[tid][j][5]);
-                output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
-            }
-        }
-        break;
-    case 7:
-        for (i=from; i<to; ++i) {
-            tid = global_search_assignment[i];
-            if (tid < 0) continue;
-            for (j=answer_7_from[tid][i]; j<answer_7_to[tid][i]; ++j) {
-                for (k=0; k<6; ++k) {
-                    deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_7[tid][j][k]);
-                    output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
-                }
-                deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_7[tid][j][6]);
-                output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
-            }
-        }
-        break;
-    default:
-        break;
-    }
-    // printf("io: %d %d\n", thr_id, line);
-    return NULL;
-}
+//     switch (io_thr_assign[thr_id][0])
+//     {
+//     case 4:
+//         for (i=0; i<node_num; ++i) {
+//             tid = global_search_assignment[i];
+//             if (tid < 0) continue;
+//             length = answer_3_to[tid][i] - answer_3_from[tid][i];
+//             memcpy(output_buffer[thr_id] + output_buffer_num[thr_id][0], answer_3[tid] + answer_3_from[tid][i], length);
+//             output_buffer_num[thr_id][0] += length;
+//         }
+//         for (i=0; i<node_num; ++i) {
+//             tid = global_search_assignment[i];
+//             if (tid < 0) continue;
+//             length = answer_4_to[tid][i] - answer_4_from[tid][i];
+//             memcpy(output_buffer[thr_id] + output_buffer_num[thr_id][0], answer_4[tid] + answer_4_from[tid][i], length);
+//             output_buffer_num[thr_id][0] += length;
+//         }
+//         break;
+//     case 5:
+//         for (i=from; i<to; ++i) {
+//             tid = global_search_assignment[i];
+//             if (tid < 0) continue;
+//             for (j=answer_5_from[tid][i]; j<answer_5_to[tid][i]; ++j) {
+//                 for (k=0; k<4; ++k) {
+//                     deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_5[tid][j][k]);
+//                     output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
+//                 }
+//                 deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_5[tid][j][4]);
+//                 output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
+//             }
+//         }
+//         break;
+//     case 6:
+//         for (i=from; i<to; ++i) {
+//             tid = global_search_assignment[i];
+//             if (tid < 0) continue;
+//             for (j=answer_6_from[tid][i]; j<answer_6_to[tid][i]; ++j) {
+//                 for (k=0; k<5; ++k) {
+//                     deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_6[tid][j][k]);
+//                     output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
+//                 }
+//                 deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_6[tid][j][5]);
+//                 output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
+//             }
+//         }
+//         break;
+//     case 7:
+//         for (i=from; i<to; ++i) {
+//             tid = global_search_assignment[i];
+//             if (tid < 0) continue;
+//             for (j=answer_7_from[tid][i]; j<answer_7_to[tid][i]; ++j) {
+//                 for (k=0; k<6; ++k) {
+//                     deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_7[tid][j][k]);
+//                     output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = ',';
+//                 }
+//                 deserialize_id(output_buffer[thr_id], output_buffer_num[thr_id][0], answer_7[tid][j][6]);
+//                 output_buffer[thr_id][output_buffer_num[thr_id][0] ++] = '\n';
+//             }
+//         }
+//         break;
+//     default:
+//         break;
+//     }
+//     // printf("io: %d %d\n", thr_id, line);
+//     return NULL;
+// }
 
 void write_to_disk() {
     // 3&4 -> 1
@@ -718,24 +718,24 @@ void write_to_disk() {
         io_thr_assign[i+3][1] = io_thr_assign[i+2][2];
     }
     io_thr_assign[3][1] = 0; io_thr_assign[12][2] = node_num;
-    // for (int i=0; i<10; ++i) {
-    //     printf("split: %d %d %d\n", i, io_thr_assign[i+3][1], io_thr_assign[i+3][2]);
-    // }
-    
-    for (int i=0; i<13; ++i) io_thr_id[i] = i;
-
-
-    size_t rub;
-    pthread_t io_thr[13];
-    for (int i=0; i<=16; ++i) {
-        if (i >= 4) {
-            pthread_join(io_thr[i-4], NULL);
-            rub = write(writer_fd, output_buffer[i-4], output_buffer_num[i-4][0]);
-        }
-        if (i < 13) {
-            pthread_create(io_thr + i, NULL, write_to_disk_thr, (void*)(io_thr_id + i));
-        }
+    for (int i=0; i<10; ++i) {
+        printf("split: %d %d %d\n", i, io_thr_assign[i+3][1], io_thr_assign[i+3][2]);
     }
+    
+    // for (int i=0; i<13; ++i) io_thr_id[i] = i;
+
+
+    // size_t rub;
+    // pthread_t io_thr[13];
+    // for (int i=0; i<=16; ++i) {
+    //     if (i >= 4) {
+    //         pthread_join(io_thr[i-4], NULL);
+    //         rub = write(writer_fd, output_buffer[i-4], output_buffer_num[i-4][0]);
+    //     }
+    //     if (i < 13) {
+    //         pthread_create(io_thr + i, NULL, write_to_disk_thr, (void*)(io_thr_id + i));
+    //     }
+    // }
 }
 
 

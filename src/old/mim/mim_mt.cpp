@@ -22,7 +22,8 @@ clock_t start_time, end_time, mid_time;
 // #define INPUT_PATH   "resources/topo_edge_test.txt"
 // #define INPUT_PATH   "resources/topo_test.txt"
 // #define INPUT_PATH  "resources/data1.txt"
-#define INPUT_PATH  "resources/2861665.txt"
+// #define INPUT_PATH  "resources/2861665.txt"
+#define INPUT_PATH   "resources/2755223.txt"
 // #define INPUT_PATH   "resources/test_data.txt"
 // #define INPUT_PATH   "resources/pre_test.txt"
 #define OUTPUT_PATH  "output_mim_mt.txt"
@@ -534,11 +535,12 @@ void do_search_mim_mt_0(int begin_with) {
     backward_3_num_mt_0 = 0;
     backward_contains_num_mt_0 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_0, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_0 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_0[0] = begin_with; dfs_path_num_mt_0 = 1;
     mask_mt_0 ++; visit_mt_0[begin_with] = mask_mt_0;
     backward_dfs_mt_0();
+    if (backward_3_num_mt_0 == 0) return;
     sort_out_mt_0(begin_with);
     dfs_path_mt_0[0] = begin_with; dfs_path_num_mt_0 = 1;
     mask_mt_0 ++; visit_mt_0[begin_with] = mask_mt_0;
@@ -763,11 +765,12 @@ void do_search_mim_mt_1(int begin_with) {
     backward_3_num_mt_1 = 0;
     backward_contains_num_mt_1 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_1, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_1 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_1[0] = begin_with; dfs_path_num_mt_1 = 1;
     mask_mt_1 ++; visit_mt_1[begin_with] = mask_mt_1;
     backward_dfs_mt_1();
+    if (backward_3_num_mt_1 == 0) return;
     sort_out_mt_1(begin_with);
     dfs_path_mt_1[0] = begin_with; dfs_path_num_mt_1 = 1;
     mask_mt_1 ++; visit_mt_1[begin_with] = mask_mt_1;
@@ -992,11 +995,12 @@ void do_search_mim_mt_2(int begin_with) {
     backward_3_num_mt_2 = 0;
     backward_contains_num_mt_2 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_2, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_2 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_2[0] = begin_with; dfs_path_num_mt_2 = 1;
     mask_mt_2 ++; visit_mt_2[begin_with] = mask_mt_2;
     backward_dfs_mt_2();
+    if (backward_3_num_mt_2 == 0) return;
     sort_out_mt_2(begin_with);
     dfs_path_mt_2[0] = begin_with; dfs_path_num_mt_2 = 1;
     mask_mt_2 ++; visit_mt_2[begin_with] = mask_mt_2;
@@ -1221,11 +1225,12 @@ void do_search_mim_mt_3(int begin_with) {
     backward_3_num_mt_3 = 0;
     backward_contains_num_mt_3 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_3, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_3 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_3[0] = begin_with; dfs_path_num_mt_3 = 1;
     mask_mt_3 ++; visit_mt_3[begin_with] = mask_mt_3;
     backward_dfs_mt_3();
+    if (backward_3_num_mt_3 == 0) return;
     sort_out_mt_3(begin_with);
     dfs_path_mt_3[0] = begin_with; dfs_path_num_mt_3 = 1;
     mask_mt_3 ++; visit_mt_3[begin_with] = mask_mt_3;
@@ -1450,11 +1455,12 @@ void do_search_mim_mt_4(int begin_with) {
     backward_3_num_mt_4 = 0;
     backward_contains_num_mt_4 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_4, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_4 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_4[0] = begin_with; dfs_path_num_mt_4 = 1;
     mask_mt_4 ++; visit_mt_4[begin_with] = mask_mt_4;
     backward_dfs_mt_4();
+    if (backward_3_num_mt_4 == 0) return;
     sort_out_mt_4(begin_with);
     dfs_path_mt_4[0] = begin_with; dfs_path_num_mt_4 = 1;
     mask_mt_4 ++; visit_mt_4[begin_with] = mask_mt_4;
@@ -1679,11 +1685,12 @@ void do_search_mim_mt_5(int begin_with) {
     backward_3_num_mt_5 = 0;
     backward_contains_num_mt_5 = 0;
     // 可以不用memset，用一个visit就好了
-    memset(backward_3_path_header_mt_5, -1, sizeof_int_mul_node_num);
+    memset(backward_3_path_header_mt_5 + begin_with, -1, sizeof(int) * (node_num - begin_with));
     // printf("started with: %d %d\n", begin_with, data_rev_mapping[begin_with]); fflush(stdout);
     dfs_path_mt_5[0] = begin_with; dfs_path_num_mt_5 = 1;
     mask_mt_5 ++; visit_mt_5[begin_with] = mask_mt_5;
     backward_dfs_mt_5();
+    if (backward_3_num_mt_5 == 0) return;
     sort_out_mt_5(begin_with);
     dfs_path_mt_5[0] = begin_with; dfs_path_num_mt_5 = 1;
     mask_mt_5 ++; visit_mt_5[begin_with] = mask_mt_5;
@@ -2046,7 +2053,7 @@ char output_buffer_io_3_0[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_0 = 0;
 void* write_to_disk_io_3_0(void* args) {
     int from, to, u, i;
-    from = 0; to = node_num/10;
+    from = 0; to = node_num*3/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2174,7 +2181,7 @@ char output_buffer_io_3_1[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_1 = 0;
 void* write_to_disk_io_3_1(void* args) {
     int from, to, u, i;
-    from = node_num/10; to = node_num*2/10;
+    from = node_num*3/200; to = node_num*7/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2302,7 +2309,7 @@ char output_buffer_io_3_2[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_2 = 0;
 void* write_to_disk_io_3_2(void* args) {
     int from, to, u, i;
-    from = node_num*2/10; to = node_num*3/10;
+    from = node_num*7/200; to = node_num*12/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2430,7 +2437,7 @@ char output_buffer_io_3_3[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_3 = 0;
 void* write_to_disk_io_3_3(void* args) {
     int from, to, u, i;
-    from = node_num*3/10; to = node_num*4/10;
+    from = node_num*12/200; to = node_num*20/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2558,7 +2565,7 @@ char output_buffer_io_3_4[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_4 = 0;
 void* write_to_disk_io_3_4(void* args) {
     int from, to, u, i;
-    from = node_num*4/10; to = node_num*5/10;
+    from = node_num*20/200; to = node_num*50/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2686,7 +2693,7 @@ char output_buffer_io_3_5[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_5 = 0;
 void* write_to_disk_io_3_5(void* args) {
     int from, to, u, i;
-    from = node_num*5/10; to = node_num*6/10;
+    from = node_num*50/200; to = node_num*100/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2814,7 +2821,7 @@ char output_buffer_io_3_6[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_6 = 0;
 void* write_to_disk_io_3_6(void* args) {
     int from, to, u, i;
-    from = node_num*6/10; to = node_num*7/10;
+    from = node_num*100/200; to = node_num*120/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -2942,7 +2949,7 @@ char output_buffer_io_3_7[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_7 = 0;
 void* write_to_disk_io_3_7(void* args) {
     int from, to, u, i;
-    from = node_num*7/10; to = node_num*8/10;
+    from = node_num*120/200; to = node_num*140/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -3070,7 +3077,7 @@ char output_buffer_io_3_8[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_8 = 0;
 void* write_to_disk_io_3_8(void* args) {
     int from, to, u, i;
-    from = node_num*8/10; to = node_num*9/10;
+    from = node_num*140/200; to = node_num*160/200;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {
@@ -3198,7 +3205,7 @@ char output_buffer_io_3_9[MAX_ANSW * ONE_INT_CHAR_SIZE * 3];
 int output_buffer_num_io_3_9 = 0;
 void* write_to_disk_io_3_9(void* args) {
     int from, to, u, i;
-    from = node_num*9/10; to = node_num;
+    from = node_num*160/200; to = node_num;
     for (u=from; u<to; ++u) {
         switch (global_search_assignment[u])
         {

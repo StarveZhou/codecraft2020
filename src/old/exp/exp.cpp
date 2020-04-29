@@ -23,7 +23,8 @@ clock_t start_time, end_time, mid_time;
 // #define INPUT_PATH   "resources/topo_edge_test.txt"
 // #define INPUT_PATH   "resources/topo_test.txt"
 // #define INPUT_PATH  "resources/data1.txt"
-#define INPUT_PATH  "resources/2861665.txt"
+// #define INPUT_PATH  "resources/2861665.txt"
+#define INPUT_PATH  "resources/2755223.txt"
 // #define INPUT_PATH   "resources/test_data.txt"
 // #define INPUT_PATH   "resources/pre_test.txt"
 #define OUTPUT_PATH  "mim.txt"
@@ -439,8 +440,9 @@ int answer_6[MAX_ANSW][6];
 int answer_7[MAX_ANSW][7];
 int answer_5_num = 0, answer_6_num = 0, answer_7_num = 0;
 
-inline void extract_forward_2_path() {
+inline bool extract_forward_2_path() {
     int v = dfs_path[2], x, y;
+    bool flag = false;
     for (int i=sorted_backward_3_path_from[v]; i<sorted_backward_3_path_to[v]; ++i) {
         x = sorted_backward_3_path_fin[i][0];
         y = sorted_backward_3_path_fin[i][1];
@@ -449,12 +451,15 @@ inline void extract_forward_2_path() {
         answer_5[answer_5_num][3] = y;
         answer_5[answer_5_num][4] = x;
         answer_5_num ++;
+        flag = true;
     }
+    return flag;
 }
 
 
-inline void extract_forward_3_path() {
+inline bool extract_forward_3_path() {
     int v = dfs_path[3], x, y;
+    bool flag = false;
     for (int i=sorted_backward_3_path_from[v]; i<sorted_backward_3_path_to[v]; ++i) {
         x = sorted_backward_3_path_fin[i][0];
         y = sorted_backward_3_path_fin[i][1];
@@ -463,11 +468,14 @@ inline void extract_forward_3_path() {
         answer_6[answer_6_num][4] = y;
         answer_6[answer_6_num][5] = x;
         answer_6_num ++;
+        flag = true;
     }
+    return flag;
 }
 
-inline void extract_forward_4_path() {
+inline bool extract_forward_4_path() {
     int v = dfs_path[4], x, y;
+    bool flag = false;
     for (int i=sorted_backward_3_path_from[v]; i<sorted_backward_3_path_to[v]; ++i) {
         x = sorted_backward_3_path_fin[i][0];
         y = sorted_backward_3_path_fin[i][1];
@@ -476,44 +484,86 @@ inline void extract_forward_4_path() {
         answer_7[answer_7_num][5] = y;
         answer_7[answer_7_num][6] = x;
         answer_7_num ++;
+        flag = true;
     }
+    return flag;
 }
 
-void forward_dfs() {
+int adv_visit[5][MAX_NODE], adv_mask[5];
+int total_dfs = 0, total_cut = 0;
+
+bool forward_dfs() {
+    total_dfs ++;
     int u, v, original_path_num = dfs_path_num;
+    bool dfs_flag = false, ret_flag, ext_flag, need_pass;
     u = dfs_path[dfs_path_num - 1];  dfs_path_num ++;
+
+    adv_mask[original_path_num - 1] ++;
+
     while (edge_topo_starter[u] < edge_topo_header[u+1] && edge_topo_edges[edge_topo_starter[u]] < dfs_path[0]) edge_topo_starter[u] ++;
     for (int i=edge_topo_starter[u]; i<edge_topo_header[u+1]; ++i) {
         v = edge_topo_edges[i];
         if (v == dfs_path[0]) {
-            if (original_path_num == 3) extract_3_answer();
-            if (original_path_num == 4) extract_4_answer();
+            if (original_path_num == 3) extract_3_answer(), dfs_flag = true;
+            if (original_path_num == 4) extract_4_answer(), dfs_flag = true;
             continue;
         }
         if (visit[v] == mask) continue;
+
+        need_pass = false;
+        for (int j=0; j<original_path_num-1; ++j) {
+            if (adv_visit[j][v] == adv_mask[j]) {
+                need_pass = true;
+                break;
+            }
+        }
+        // if (need_pass) {
+        //     total_cut ++;
+        //     continue;
+        // }
+        switch (original_path_num)
+        {
+        case 4:
+            if (adv_visit[2][v] == adv_mask[2]) continue;
+        case 3:
+            if (adv_visit[1][v] == adv_mask[1]) continue;
+        case 2:
+            if (adv_visit[0][v] == adv_mask[0]) continue;
+        default:
+            break;
+        }
+
         dfs_path[original_path_num] = v; 
+        ext_flag = false;
         if (backward_3_path_header[v] != -1) {
             switch (original_path_num)
             {
             case 2:
-                extract_forward_2_path();
+                if (extract_forward_2_path()) ext_flag = true;
                 break;
             case 3:
-                extract_forward_3_path();
+                if (extract_forward_3_path()) ext_flag = true;
                 break;
             case 4:
-                extract_forward_4_path();
+                if (extract_forward_4_path()) ext_flag = true;
                 break;
             default:
                 break;
             }
         }
+        if (ext_flag) dfs_flag = true;
+
         if (original_path_num == 4) continue;
         visit[v] = mask;
-        forward_dfs();
+        ret_flag = forward_dfs();
+        if (ret_flag) dfs_flag = true;
+        if (!ext_flag && !ret_flag) {
+            adv_visit[original_path_num-1][v] = adv_mask[original_path_num-1];
+        }
         visit[v] = 0;
     }
     dfs_path_num --;
+    return dfs_flag;
 }
 
 
@@ -664,6 +714,8 @@ int main() {
     answer_num = answer_3_num + answer_4_num + answer_5_num + answer_6_num + answer_7_num;
     printf("answer: %d\n", answer_num);
     
+    printf("total: %d %d\n", total_dfs, total_cut);
+
     end_time = clock();
     printf("searching: %d ms\n", (int)(end_time - mid_time)); fflush(stdout);
 

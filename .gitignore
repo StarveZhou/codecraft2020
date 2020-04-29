@@ -41,6 +41,7 @@ resources/data*
 *_output.txt
 slice*
 resources/2861665.txt
+resources/2755223.txt
 *_test.txt
 mim.txt
 reduce_mim.txt
