@@ -46,3 +46,6 @@ resources/2755223.txt
 mim.txt
 reduce_mim.txt
 s_mt_output_io.txt
+resources/
+output/
+exp.*
