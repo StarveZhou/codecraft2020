@@ -1,5 +1,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 #include <fcntl.h>
 #include <stdlib.h>
 
@@ -11,8 +13,11 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include <arm_neon.h>
+
 //------------------ MACRO ---------------------
 
+#include <errno.h>
 #include <stdio.h>
 
 // #define INPUT_PATH     "resources/pretest.txt"
@@ -42,12 +47,19 @@
 // ***************************************************************
 
 
+void* fast_memcpy(void* dst, void* src, size_t size) {
+    unsigned long *s = (unsigned long *) src;
+    unsigned long *d = (unsigned long *) dst;
+    vst1q_u64(&d[0], vld1q_u64(&s[0]));
+    // if (size > 16) {
+    //     vst1q_u64(&d[2], vld1q_u64(&s[2]));
+    // }
+    return dst;
+}
 
 
 
 
-
-char* buffer;
 
 int CACHE_LINE_ALIGN data[MAX_EDGE][3];
 int CACHE_LINE_ALIGN data_num;
@@ -58,22 +70,21 @@ int CACHE_LINE_ALIGN node_num = 0;
 
 
 void read_input() {
-    buffer = (char*) malloc(MAX_EDGE * MAX_FOR_EACH_LINE * sizeof(char));
     int fd = open(INPUT_PATH, O_RDONLY);
     if (fd == -1) {
         printf("fail to open\n"); fflush(stdout);
         exit(0);
     }
-    size_t size = read(fd, buffer, MAX_EDGE * MAX_FOR_EACH_LINE);
-    close(fd);
+    size_t size = lseek(fd, 0, SEEK_END);
+    printf("size: %d\n", (int) size); fflush(stdout);
+    char *buffer = (char*)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    printf("buf: %lld\n", buffer); fflush(stdout);
     
-    if (buffer[size-1] >= '0' && buffer[size-1] <= '9') {
-        buffer[size ++] = '\n';
-    }
+
     int x = 0;
     int* local_data = &data[0][0];
     for (int i=0; i<size; ++i) {
-        if (unlikely(buffer[i] == ',' || buffer[i] == '\n')) {
+        if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) {
             *local_data = x;
             local_data ++;
             x = 0;
@@ -83,6 +94,8 @@ void read_input() {
     }
     data_num = (local_data - &data[0][0]) / 3;
     
+    printf("over\n"); fflush(stdout);
+
     std::unordered_map<int, int> hashmap;
     for (int i=0; i<data_num; ++i) {
         x = data[i][0];
@@ -108,17 +121,9 @@ void read_input() {
         data[i][0] = hashmap[data[i][0]];
         data[i][1] = hashmap[data[i][1]];
     }
-
-    free(buffer);
+    munmap((void *)buffer, size);
+    close(fd);
     printf("node num: %d\n", node_num);
-}
-
-int writer_fd;
-void create_writer_fd() {
-    writer_fd = open(OUTPUT_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (writer_fd == -1) {
-        exit(0);
-    }
 }
 
 
@@ -187,6 +192,7 @@ struct EdgeVec {
     int length;
 };
 
+bool searchable_nodes[2][MAX_NODE];
 
 Edge *__fwd_edges, *__bck_edges;
 EdgeVec *fwd_edges_vec, *bck_edges_vec;
@@ -204,7 +210,11 @@ void build_edges() {
     for (int i=0; i<data_num; ++i) {
         x = data[i][2];
         if (x == -1) continue;
-        u = data[i][0]; v = data[i][1]; 
+        u = data[i][0]; v = data[i][1];
+
+        if (v < u) searchable_nodes[0][v] = true;
+        if (v > u) searchable_nodes[1][u] = true;
+
         fwd_edges_vec[u].length ++;
         bck_edges_vec[v].length ++;
     }
@@ -215,6 +225,8 @@ void build_edges() {
 
     int fwd_num = 0, bck_num = 0;
     for (int i=0; i<node_num; ++i) {
+        searchable_nodes[0][u] &= searchable_nodes[1][u];
+
         fwd_edges_vec[i].from = __fwd_edges + fwd_num;
         fwd_num += fwd_edges_vec[i].length;
         fwd_edges_vec[i].length = 0;
@@ -248,105 +260,44 @@ void build_edges() {
                 return a.v < b.v;
             });
     }
-
-    // printf("edges: \n");
-    // for(u=0; u<node_num; ++u) {
-    //     printf("[%d] %d: ", data_rev_mapping[u], fwd_edges_vec[u].length);
-    //     for (int i=0; i<fwd_edges_vec[u].length; ++i) {
-    //         printf("%d ", data_rev_mapping[fwd_edges_vec[u].from[i].v]);
-    //     }
-    //     printf("\n");
-    // }
-
-    // printf("rev edges: \n");
-    // for (u=0; u<node_num; ++u) {
-    //     printf("[%d] %d: ", data_rev_mapping[u], bck_edges_vec[u].length);
-    //     for (int i=0; i<bck_edges_vec[u].length; ++i) {
-    //         printf("%d ", data_rev_mapping[bck_edges_vec[u].from[i].v]);
-    //     }
-    //     printf("\n");
-    // }
 }
-
 
 bool topo_useless[MAX_NODE];
+int topo_counter[MAX_NODE], topo_queue[MAX_NODE];
+
 void topo_filter() {
-    int* malloc_all = (int*) malloc(sizeof(int) * (node_num + node_num + node_num));
-    int* queue = malloc_all;
-    int* fwd_counter = malloc_all + node_num;
-    int* bck_counter = malloc_all + node_num + node_num;
-    int u, v, head, tail;
-
-    for (u=0; u<node_num; ++u) {
-        bck_counter[u] = fwd_edges_vec[u].length;
-        fwd_counter[u] = bck_edges_vec[u].length; 
-    }
-
-    // fwd
-    head = tail = 0;
-    for (u=0; u<node_num; ++u) {
-        if (fwd_counter[u] == 0) {
-            topo_useless[u] = true;
-            queue[tail ++] = u;
+    int head = 0, tail = 0;
+    for (int i=0; i<node_num; ++i) {
+        topo_counter[i] = bck_edges_vec[i].length;
+        if (topo_counter[i] == 0) {
+            topo_useless[i] = true;
+            topo_queue[tail ++] = i;
         }
     }
+    int u, v;
     while (head < tail) {
-        u = queue[head ++];
+        u = topo_queue[head ++];
         for (int i=0; i<fwd_edges_vec[u].length; ++i) {
             v = (fwd_edges_vec[u].from + i) -> v;
-            fwd_counter[v] --;
-            if (fwd_counter[v] == 0) {
+            topo_counter[v] --;
+            if (topo_counter[v] == 0) {
                 topo_useless[v] = true;
-                queue[tail ++] = v;
+                topo_queue[tail ++] = v;
             }
         }
     }
-
-    // bck
-    head = tail = 0;
-    for (u=0; u<node_num; ++u) {
-        if (bck_counter[u] == 0) {
-            topo_useless[u] = true;
-            queue[tail ++] = u;
-        }
-    }
-    while (head < tail) {
-        u = queue[head ++];
-        for (int i=0; i<bck_edges_vec[u].length; ++i) {
-            v = (fwd_edges_vec[u].from + i) -> v;
-            bck_counter[v] --;
-            if (bck_counter[v] == 0) {
-                topo_useless[v] = true;
-                queue[tail ++] = v;
-            }
-        }
-    }
-
-    free(malloc_all);
-}
-
-int useful_starter[MAX_NODE];
-void starter_filter() {
-    int u, v;
-    for (int i=0; i<data_num; ++i) {
-        if (data[i][2] == -1) continue;
-        u = data[i][0]; v = data[i][1];
-        if (topo_useless[u] || topo_useless[v]) continue;
-        if (v > u) useful_starter[u] |= 1;
-        if (v < u) useful_starter[v] |= 2;
-    }
-}
-
-void node_filter() {
-    topo_filter();
-    starter_filter();
 }
 
 
 
 inline bool check_x_y(int x, int y) {
-    return x <= 5LL * y && y <= 0LL + x + x + x;
+    return x <= 5LL * y && y <= 3LL * x;
 }
+
+inline bool not_check_x_y(int x, int y) {
+    return x > 5LL * y || y > 3LL * x;
+}
+
 
 struct Answer {
     int s, a, b, c, d, e, f;
@@ -356,10 +307,11 @@ struct Answer {
 };
 
 struct BackTwoStep {
+    long long value;
     int e, f, ex, fx;
     BackTwoStep() {}
     BackTwoStep(int e, int f, int ex, int fx):
-        e(e), f(f), ex(ex), fx(fx) {}
+        e(e), f(f), ex(ex), fx(fx) { value = (1LL << 30) * e + f;}
 };
 
 // 可以进一步利用缓存，不适用two_step指针
@@ -372,6 +324,12 @@ struct BackStep {
         two_step(two_step), nxt(nxt), dx(dx) {}
 };
 
+struct Bound {
+    int head, tail;
+    Bound() {}
+    Bound(int head, int tail): head(head), tail(tail) {}
+};
+
 #define MILLION    1000000
 
 int global_assign_num = 0;
@@ -379,11 +337,10 @@ int global_assign[MAX_NODE];
 int total_answer_num = 0;
 
 // header和tailer数组可以合并成一个，缓存
-// fwd最后一层循环展开
 
 #define def_declr(tid) \
 Answer *answer_##tid[5]; \
-int *answer_header_##tid[5], *answer_tailer_##tid[5]; \
+Bound* answer_bound_##tid[5]; \
 int answer_num_##tid[5]; \
 int total_answer_num_##tid; \
 \
@@ -398,8 +355,7 @@ void malloc_##tid() { \
         malloc(sizeof(BackTwoStep) * MILLION); \
     for (int i=0; i<5; ++i) { \
         answer_##tid[i] = (Answer*) malloc(sizeof(Answer) * 10000000); \
-        answer_header_##tid[i] = (int*) malloc(sizeof(int) * node_num); \
-        answer_tailer_##tid[i] = (int*) malloc(sizeof(int) * node_num); \
+        answer_bound_##tid[i] = (Bound*) malloc(sizeof(Bound) * node_num); \
     } \
     bck_step_vec_##tid = (BackStep*) malloc(sizeof(BackStep) * MILLION); \
     bck_step_header_##tid = (BackStep**) malloc(sizeof(BackStep*) * node_num); \
@@ -433,7 +389,7 @@ bool do_bck_search_##tid(int starter) { \
             e = edge_e -> v; ex = edge_e -> x; \
             if (e <= starter) break; \
             if (topo_useless[e]) continue; \
-            if (!check_x_y(ex, fx)) continue; \
+            if (not_check_x_y(ex, fx)) continue; \
             bck_two_step_vec_##tid[bck_two_step_num ++] = {e, f, ex, fx}; \
         } \
     } \
@@ -441,7 +397,7 @@ bool do_bck_search_##tid(int starter) { \
     \
     std::sort(bck_two_step_vec_##tid, bck_two_step_vec_##tid + bck_two_step_num, \
         [](BackTwoStep a, BackTwoStep b) { \
-            return a.e != b.e ? a.e < b.e : a.f < b.f; \
+            return a.value < b.value; \
         }); \
     \
     BackTwoStep *step = bck_two_step_vec_##tid + bck_two_step_num; \
@@ -457,7 +413,7 @@ bool do_bck_search_##tid(int starter) { \
             if (d < starter) break; \
             if (topo_useless[d]) continue; \
             if (d == f) continue; \
-            if (!check_x_y(dx, ex)) continue; \
+            if (not_check_x_y(dx, ex)) continue; \
             if (d == starter) { \
                 f = step -> f; fx = step -> fx; \
                 if (check_x_y(fx, dx)) { \
@@ -517,7 +473,10 @@ void do_fwd_search_##tid(int starter) { \
                 f = bck_step -> two_step -> f; \
                 dx = bck_step -> dx; \
                 fx = bck_step -> two_step -> fx; \
-                if (check_x_y(fx, sx) && check_x_y(sx, dx)) { \
+                if (not_check_x_y(fx, sx) || not_check_x_y(sx, dx)){ \
+                    bck_step = bck_step -> nxt; \
+                    continue; \
+                } else { \
                     index = answer_num_##tid[1] ++; \
                     answer_##tid[1][index] = {starter, a, e, f}; \
                 } \
@@ -532,22 +491,27 @@ void do_fwd_search_##tid(int starter) { \
             b = edge_a -> v; ax = edge_a -> x; \
             edge_a ++; \
             if (topo_useless[b]) continue; \
-            if (!check_x_y(sx, ax)) continue; \
+            if (not_check_x_y(sx, ax)) continue; \
             \
             if (bck_step_visit_##tid[b] == starter) { \
                 bck_step = bck_step_header_##tid[b]; \
                 while (bck_step != NULL) { \
                     e = bck_step -> two_step -> e; \
                     f = bck_step -> two_step -> f; \
-                    if (b != f && a != e && a != f) { \
+                    if (b == f || a == e || a == f) { \
+                        bck_step = bck_step -> nxt; \
+                        continue; \
+                    } else { \
                         dx = bck_step -> dx; \
                         fx = bck_step -> two_step -> fx; \
-                        if (check_x_y(fx, sx) && check_x_y(ax, dx)) { \
+                        bck_step = bck_step -> nxt; \
+                        if (not_check_x_y(fx, sx) || not_check_x_y(ax, dx)) { \
+                            continue; \
+                        } else { \
                             index = answer_num_##tid[2] ++; \
                             answer_##tid[2][index] = {starter, a, b, e, f}; \
                         } \
                     } \
-                    bck_step = bck_step -> nxt; \
                 } \
             } \
             \
@@ -559,22 +523,27 @@ void do_fwd_search_##tid(int starter) { \
                 edge_b ++; \
                 if (topo_useless[c]) continue; \
                 if (c == a) continue; \
-                if (!check_x_y(ax, bx)) continue; \
+                if (not_check_x_y(ax, bx)) continue; \
                 \
                 if (bck_step_visit_##tid[c] == starter) { \
                     bck_step = bck_step_header_##tid[c]; \
                     while (bck_step != NULL) { \
                         e = bck_step -> two_step -> e; \
                         f = bck_step -> two_step -> f; \
-                        if (a != e && a != f && b != e && b != f && c != f) { \
+                        if (a == e || a == f || b == e || b == f || c == f) { \
+                            bck_step = bck_step -> nxt; \
+                            continue; \
+                        } else  { \
                             dx = bck_step -> dx; \
                             fx = bck_step -> two_step -> fx; \
-                            if (check_x_y(fx, sx) && check_x_y(bx, dx)) { \
+                            bck_step = bck_step -> nxt; \
+                            if (not_check_x_y(fx, sx) || not_check_x_y(bx, dx)) { \
+                                continue; \
+                            } else { \
                                 index = answer_num_##tid[3] ++; \
                                 answer_##tid[3][index] = {starter, a, b, c, e, f}; \
                             } \
                         } \
-                        bck_step = bck_step -> nxt; \
                     } \
                 } \
                 \
@@ -586,22 +555,27 @@ void do_fwd_search_##tid(int starter) { \
                     edge_c ++; \
                     if (topo_useless[d]) continue; \
                     if (d == a || d == b) continue; \
-                    if (!check_x_y(bx, cx)) continue; \
+                    if (not_check_x_y(bx, cx)) continue; \
                     \
                     if (bck_step_visit_##tid[d] == starter) { \
                         bck_step = bck_step_header_##tid[d]; \
                         while (bck_step != NULL) { \
                             e = bck_step -> two_step -> e; \
                             f = bck_step -> two_step -> f; \
-                            if (a != e && a != f && b != e && b != f && c != e && c != f && d != f) { \
+                            if (a == e || a == f || b == e || b == f || c == e || c == f || d == f) { \
+                                bck_step = bck_step -> nxt; \
+                                continue; \
+                            } else { \
                                 dx = bck_step -> dx; \
                                 fx = bck_step -> two_step -> fx; \
-                                if (check_x_y(fx, sx) && check_x_y(cx, dx)) { \
+                                bck_step = bck_step -> nxt; \
+                                if (not_check_x_y(fx, sx) || not_check_x_y(cx, dx)) { \
+                                    continue; \
+                                } else { \
                                     index = answer_num_##tid[4] ++; \
                                     answer_##tid[4][index] = {starter, a, b, c, d, e, f}; \
                                 } \
                             } \
-                            bck_step = bck_step -> nxt; \
                         } \
                     } \
                 } \
@@ -613,15 +587,15 @@ void do_fwd_search_##tid(int starter) { \
 #define def_do_search(tid) \
 void do_search_##tid(int starter) { \
     for (int i=0; i<5; ++i) { \
-        answer_header_##tid[i][starter] = answer_num_##tid[i]; \
+        answer_bound_##tid[i][starter].head = answer_num_##tid[i]; \
     } \
     \
-    if (!topo_useless[starter] && useful_starter[starter] == 3 && do_bck_search_##tid(starter)) { \
+    if (do_bck_search_##tid(starter)) { \
         do_fwd_search_##tid(starter); \
     } \
     \
     for (int i=0; i<5; ++i) { \
-        answer_tailer_##tid[i][starter] = answer_num_##tid[i]; \
+        answer_bound_##tid[i][starter].tail = answer_num_##tid[i]; \
     } \
     return; \
 }
@@ -632,10 +606,14 @@ void* search_##tid(void* args) { \
     malloc_##tid(); \
     int u; \
     while (true) { \
-        u = __sync_fetch_and_add(&global_assign_num, 1); \
+        u = __sync_fetch_and_add(&global_assign_num, 100); \
+        for (int i=0; i<100 && u < node_num; ++i, ++ u) { \
+            global_assign[u] = -1; \
+            if (!searchable_nodes[0][u] || topo_useless[u]) continue; \
+            global_assign[u] = tid; \
+            do_search_##tid(u); \
+        } \
         if (u >= node_num) break; \
-        global_assign[u] = tid; \
-        do_search_##tid(u); \
     } \
     for (int i=0; i<5; ++i) { \
         total_answer_num_##tid += answer_num_##tid[i]; \
@@ -660,8 +638,6 @@ def_search_body(0)
 def_search_body(1)
 def_search_body(2)
 def_search_body(3)
-def_search_body(4)
-def_search_body(5)
 
 
 
@@ -675,67 +651,255 @@ inline void deserialize_id(char* buffer, int& buffer_index, int x);
 #define add_common buffer[buffer_index ++] = ',';
 #define add_break  buffer[buffer_index ++] = '\n';
 
-void deserialize_answer(char* buffer, int& buffer_index, Answer* answer, int id) {
+void deserialize_answer_3(char* buffer, int& buffer_index, Answer3* answer) {
+    deserialize_id(buffer, buffer_index, answer -> s);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> a);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> b);   
+    add_break
+}
+
+void deserialize_answer_4(char* buffer, int& buffer_index, Answer4* answer) {
     deserialize_id(buffer, buffer_index, answer -> s);
     add_common
     deserialize_id(buffer, buffer_index, answer -> a);
     add_common
     deserialize_id(buffer, buffer_index, answer -> b);
-    int* nxt = &(answer -> c);
-    switch (id)
-    {
-    case 4:
-        add_common
-        deserialize_id(buffer, buffer_index, *nxt);
-        nxt ++;
-    case 3:
-        add_common
-        deserialize_id(buffer, buffer_index, *nxt);
-        nxt ++;
-    case 2:
-        add_common
-        deserialize_id(buffer, buffer_index, *nxt);
-        nxt ++;    
-    case 1:
-        add_common
-        deserialize_id(buffer, buffer_index, *nxt);
-        break; 
-    default:
-        break;
-    }
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> c);
     add_break
 }
 
-void deserialize(char* buffer, int& buffer_index, int id, int from, int to) {
-#define def_case(tid) \
+void deserialize_answer_5(char* buffer, int& buffer_index, Answer5* answer) {
+    deserialize_id(buffer, buffer_index, answer -> s);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> a);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> b);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> c);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> d);
+    add_break
+}
+
+void deserialize_answer_6(char* buffer, int& buffer_index, Answer6* answer) {
+    deserialize_id(buffer, buffer_index, answer -> s);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> a);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> b);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> c);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> d);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> e);
+    add_break
+}
+
+void deserialize_answer_7(char* buffer, int& buffer_index, Answer7* answer) {
+    deserialize_id(buffer, buffer_index, answer -> s);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> a);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> b);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> c);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> d);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> e);
+    add_common
+    deserialize_id(buffer, buffer_index, answer -> f);
+    add_break
+}
+
+#define def_case(tid, aid) \
     case tid: \
-        local_answer = answer_##tid[id]; \
-        header = answer_header_##tid[id][u]; \
-        tailer = answer_tailer_##tid[id][u]; \
+        local_answer = answer_##aid_##tid; \
+        header = answer_header_##tid[aid-3][u]; \
+        tailer = answer_tailer_##tid[aid-3][u]; \
         break;
 
-    Answer *local_answer;
+void deserialize_3(char* buffer, int& buffer_index, int from, int to) {
+    Answer3 *local_answer;
     int header, tailer;
     for (int u=from; u<to; ++u) {
+        if (global_assign[u] == -1) continue;
         switch (global_assign[u])
         {
-        def_case(0) 
-        def_case(1) 
-        def_case(2) 
-        def_case(3) 
-        def_case(4) 
-        def_case(5) 
+        case 0:
+            local_answer = answer_3_0; 
+            header = answer_bound_0[0][u].head;
+            tailer = answer_bound_0[0][u].tail;
+            break;
+        case 1:
+            local_answer = answer_3_1; 
+            header = answer_bound_1[0][u].head;
+            tailer = answer_bound_1[0][u].tail;
+            break;
+        case 2:
+            local_answer = answer_3_2; 
+            header = answer_bound_2[0][u].head;
+            tailer = answer_bound_2[0][u].tail;
+            break;
+        case 3:
+            local_answer = answer_3_3; 
+            header = answer_bound_3[0][u].head;
+            tailer = answer_bound_3[0][u].tail;
+            break;
         default:
             break;
         }
-        if (id == 0)
-            for (int i=tailer-1; i>=header; --i) {
-                deserialize_answer(buffer, buffer_index, local_answer + i, id);
-            }
-        else
-            for (int i=header; i<tailer; ++i) {
-                deserialize_answer(buffer, buffer_index, local_answer + i, id);
-            }
+        for (int i=tailer-1; i>=header; --i) {
+            deserialize_answer_3(buffer, buffer_index, local_answer + i);
+        }
+    }
+}
+
+void deserialize_4(char* buffer, int& buffer_index, int from, int to) {
+    Answer4 *local_answer;
+    int header, tailer;
+    for (int u=from; u<to; ++u) {
+        if (global_assign[u] == -1) continue;
+        switch (global_assign[u])
+        {
+        case 0:
+            local_answer = answer_4_0; 
+            header = answer_bound_0[1][u].head;
+            tailer = answer_bound_0[1][u].tail;
+            break;
+        case 1:
+            local_answer = answer_4_1; 
+            header = answer_bound_1[1][u].head;
+            tailer = answer_bound_1[1][u].tail;
+            break;
+        case 2:
+            local_answer = answer_4_2; 
+            header = answer_bound_2[1][u].head;
+            tailer = answer_bound_2[1][u].tail;
+            break;
+        case 3:
+            local_answer = answer_4_3; 
+            header = answer_bound_3[1][u].head;
+            tailer = answer_bound_3[1][u].tail;
+            break;
+        default:
+            break;
+        }
+        for (int i=header; i<tailer; ++i) {
+            deserialize_answer_4(buffer, buffer_index, local_answer + i);
+        }
+    }
+}
+
+void deserialize_5(char* buffer, int& buffer_index, int from, int to) {
+    Answer5 *local_answer;
+    int header, tailer;
+    for (int u=from; u<to; ++u) {
+        if (global_assign[u] == -1) continue;
+        switch (global_assign[u])
+        {
+        case 0:
+            local_answer = answer_5_0; 
+            header = answer_bound_0[2][u].head;
+            tailer = answer_bound_0[2][u].tail;
+            break;
+        case 1:
+            local_answer = answer_5_1; 
+            header = answer_bound_1[2][u].head;
+            tailer = answer_bound_1[2][u].tail;
+            break;
+        case 2:
+            local_answer = answer_5_2; 
+            header = answer_bound_2[2][u].head;
+            tailer = answer_bound_2[2][u].tail;
+            break;
+        case 3:
+            local_answer = answer_5_3; 
+            header = answer_bound_3[2][u].head;
+            tailer = answer_bound_3[2][u].tail;
+            break;
+        default:
+            break;
+        }
+        for (int i=header; i<tailer; ++i) {
+            deserialize_answer_5(buffer, buffer_index, local_answer + i);
+        }
+    }
+}
+
+void deserialize_6(char* buffer, int& buffer_index, int from, int to) {
+    Answer6 *local_answer;
+    int header, tailer;
+    for (int u=from; u<to; ++u) {
+        if (global_assign[u] == -1) continue;
+        switch (global_assign[u])
+        {
+        case 0:
+            local_answer = answer_6_0; 
+            header = answer_bound_0[3][u].head;
+            tailer = answer_bound_0[3][u].tail;
+            break;
+        case 1:
+            local_answer = answer_6_1; 
+            header = answer_bound_1[3][u].head;
+            tailer = answer_bound_1[3][u].tail;
+            break;
+        case 2:
+            local_answer = answer_6_2; 
+            header = answer_bound_2[3][u].head;
+            tailer = answer_bound_2[3][u].tail;
+            break;
+        case 3:
+            local_answer = answer_6_3; 
+            header = answer_bound_3[3][u].head;
+            tailer = answer_bound_3[3][u].tail;
+            break;
+        default:
+            break;
+        }
+        for (int i=header; i<tailer; ++i) {
+            deserialize_answer_6(buffer, buffer_index, local_answer + i);
+        }
+    }
+}
+
+void deserialize_7(char* buffer, int& buffer_index, int from, int to) {
+    Answer7 *local_answer;
+    int header, tailer;
+    for (int u=from; u<to; ++u) {
+        if (global_assign[u] == -1) continue;
+        switch (global_assign[u])
+        {
+        case 0:
+            local_answer = answer_7_0; 
+            header = answer_bound_0[4][u].head;
+            tailer = answer_bound_0[4][u].tail;
+            break;
+        case 1:
+            local_answer = answer_7_1; 
+            header = answer_bound_1[4][u].head;
+            tailer = answer_bound_1[4][u].tail;
+            break;
+        case 2:
+            local_answer = answer_7_2; 
+            header = answer_bound_2[4][u].head;
+            tailer = answer_bound_2[4][u].tail;
+            break;
+        case 3:
+            local_answer = answer_7_3; 
+            header = answer_bound_3[4][u].head;
+            tailer = answer_bound_3[4][u].tail;
+            break;
+        default:
+            break;
+        }
+        for (int i=header; i<tailer; ++i) {
+            deserialize_answer_7(buffer, buffer_index, local_answer + i);
+        }
     }
 }
 
@@ -745,12 +909,13 @@ int write_buffer_num_##tid;
 
 def_write_declar(0)
 void* write_thr_0(void* args) {
-    write_buffer_0 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4);
+    write_buffer_0 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 6);
     deserialize_int(write_buffer_0, write_buffer_num_0, total_answer_num);
     write_buffer_0[write_buffer_num_0 ++] = '\n';
-    deserialize(write_buffer_0, write_buffer_num_0, 0, 0, node_num);
-    deserialize(write_buffer_0, write_buffer_num_0, 1, 0, node_num);
-    deserialize(write_buffer_0, write_buffer_num_0, 2, 0, node_num);
+    deserialize_3(write_buffer_0, write_buffer_num_0, 0, node_num);
+    deserialize_4(write_buffer_0, write_buffer_num_0, 0, node_num);
+    deserialize_5(write_buffer_0, write_buffer_num_0, 0, node_num);
+    deserialize_6(write_buffer_0, write_buffer_num_0, 0, node_num);
     return NULL;
 }
 
@@ -758,35 +923,35 @@ void* write_thr_0(void* args) {
 def_write_declar(1) 
 void* write_thr_1(void* args) { 
     write_buffer_1 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4); 
-    deserialize(write_buffer_1, write_buffer_num_1, 3, 0, node_num); 
+    deserialize_7(write_buffer_1, write_buffer_num_1, 0, node_num / 10); 
     return NULL; 
 }
 
 def_write_declar(2) 
 void* write_thr_2(void* args) { 
     write_buffer_2 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4); 
-    deserialize(write_buffer_2, write_buffer_num_2, 4, 0, node_num / 10); 
+    deserialize_7(write_buffer_2, write_buffer_num_2, node_num / 10, node_num / 5); 
     return NULL; 
 }
 
 def_write_declar(3) 
 void* write_thr_3(void* args) { 
     write_buffer_3 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4); 
-    deserialize(write_buffer_3, write_buffer_num_3, 4, node_num / 10, node_num / 4); 
+    deserialize_7(write_buffer_3, write_buffer_num_3, node_num / 5, node_num / 3); 
     return NULL; 
 }
 
 def_write_declar(4) 
 void* write_thr_4(void* args) { 
     write_buffer_4 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4); 
-    deserialize(write_buffer_4, write_buffer_num_4, 4, node_num / 4, node_num / 2); 
+    deserialize_7(write_buffer_4, write_buffer_num_4, node_num / 3, node_num / 2); 
     return NULL; 
 }
 
 def_write_declar(5) 
 void* write_thr_5(void* args) { 
     write_buffer_5 = (char*) malloc(sizeof(char) * total_answer_num * ONE_INT_CHAR_SIZE * 4); 
-    deserialize(write_buffer_5, write_buffer_num_5, 4, node_num / 2, node_num); 
+    deserialize_7(write_buffer_5, write_buffer_num_5, node_num / 2, node_num); 
     return NULL; 
 }
 
@@ -800,6 +965,11 @@ void do_write() {
     pthread_create(write_thr + 3, NULL, write_thr_3, NULL);
     pthread_create(write_thr + 4, NULL, write_thr_4, NULL);
     pthread_create(write_thr + 5, NULL, write_thr_5, NULL);
+
+    int writer_fd = open(OUTPUT_PATH, O_RDWR | O_CREAT , 0666);
+    if (writer_fd == -1) {
+        exit(0);
+    }
 
     size_t rub; 
 
@@ -826,7 +996,6 @@ void do_write() {
 
 int main() {
     read_input();
-    create_writer_fd();
 
     printf("after read\n"); fflush(stdout);
 
@@ -838,19 +1007,18 @@ int main() {
 
     printf("after build\n"); fflush(stdout);
 
-    node_filter();
+    topo_filter();
 
-    pthread_t search_thr[6];
+    pthread_t search_thr[4];
     pthread_create(search_thr + 0, NULL, search_0, NULL);
     pthread_create(search_thr + 1, NULL, search_1, NULL);
     pthread_create(search_thr + 2, NULL, search_2, NULL);
     pthread_create(search_thr + 3, NULL, search_3, NULL);
-    pthread_create(search_thr + 4, NULL, search_4, NULL);
-    pthread_create(search_thr + 5, NULL, search_5, NULL);
+
 
     create_integer_buffer(); 
 
-    for (int i=0; i<6; ++i) pthread_join(search_thr[i], NULL);
+    for (int i=0; i<4; ++i) pthread_join(search_thr[i], NULL);
     // pthread_join(search_thr[0], NULL);
 
     printf("total answer: %d\n", total_answer_num);
@@ -932,6 +1100,6 @@ inline void deserialize_int(char* buffer, int& buffer_index, int x) {
 
 
 inline void deserialize_id(char* buffer, int& buffer_index, int x) {
-    memcpy(buffer + buffer_index, integer_buffer[x], integer_buffer_size[x] * sizeof(char));
+    fast_memcpy(buffer + buffer_index, integer_buffer[x], integer_buffer_size[x] * sizeof(char));
     buffer_index += integer_buffer_size[x];
 }

@@ -269,61 +269,6 @@ void build_edges() {
 }
 
 
-bool topo_useless[MAX_NODE];
-void topo_filter() {
-    int* malloc_all = (int*) malloc(sizeof(int) * (node_num + node_num + node_num));
-    int* queue = malloc_all;
-    int* fwd_counter = malloc_all + node_num;
-    int* bck_counter = malloc_all + node_num + node_num;
-    int u, v, head, tail;
-
-    for (u=0; u<node_num; ++u) {
-        bck_counter[u] = fwd_edges_vec[u].length;
-        fwd_counter[u] = bck_edges_vec[u].length; 
-    }
-
-    // fwd
-    head = tail = 0;
-    for (u=0; u<node_num; ++u) {
-        if (fwd_counter[u] == 0) {
-            topo_useless[u] = true;
-            queue[tail ++] = u;
-        }
-    }
-    while (head < tail) {
-        u = queue[head ++];
-        for (int i=0; i<fwd_edges_vec[u].length; ++i) {
-            v = (fwd_edges_vec[u].from + i) -> v;
-            fwd_counter[v] --;
-            if (fwd_counter[v] == 0) {
-                topo_useless[v] = true;
-                queue[tail ++] = v;
-            }
-        }
-    }
-
-    // bck
-    head = tail = 0;
-    for (u=0; u<node_num; ++u) {
-        if (bck_counter[u] == 0) {
-            topo_useless[u] = true;
-            queue[tail ++] = u;
-        }
-    }
-    while (head < tail) {
-        u = queue[head ++];
-        for (int i=0; i<bck_edges_vec[u].length; ++i) {
-            v = (fwd_edges_vec[u].from + i) -> v;
-            bck_counter[v] --;
-            if (bck_counter[v] == 0) {
-                topo_useless[v] = true;
-                queue[tail ++] = v;
-            }
-        }
-    }
-
-    free(malloc_all);
-}
 
 int useful_starter[MAX_NODE];
 void starter_filter() {
@@ -331,14 +276,12 @@ void starter_filter() {
     for (int i=0; i<data_num; ++i) {
         if (data[i][2] == -1) continue;
         u = data[i][0]; v = data[i][1];
-        if (topo_useless[u] || topo_useless[v]) continue;
         if (v > u) useful_starter[u] |= 1;
         if (v < u) useful_starter[v] |= 2;
     }
 }
 
 void node_filter() {
-    topo_filter();
     starter_filter();
 }
 
@@ -426,13 +369,11 @@ bool do_bck_search_##tid(int starter) { \
         edge_f --; \
         f = edge_f -> v; fx = edge_f -> x; \
         if (f <= starter) break; \
-        if (topo_useless[f]) continue; \
         edge_e = bck_edges_vec[f].from + bck_edges_vec[f].length; \
         while (edge_e > bck_edges_vec[f].from) { \
             edge_e --; \
             e = edge_e -> v; ex = edge_e -> x; \
             if (e <= starter) break; \
-            if (topo_useless[e]) continue; \
             if (!check_x_y(ex, fx)) continue; \
             bck_two_step_vec_##tid[bck_two_step_num ++] = {e, f, ex, fx}; \
         } \
@@ -455,7 +396,6 @@ bool do_bck_search_##tid(int starter) { \
             edge_d --; \
             d = edge_d -> v; dx = edge_d -> x; \
             if (d < starter) break; \
-            if (topo_useless[d]) continue; \
             if (d == f) continue; \
             if (!check_x_y(dx, ex)) continue; \
             if (d == starter) { \
@@ -507,7 +447,6 @@ void do_fwd_search_##tid(int starter) { \
     while (s_num --) { \
         a = edge_s -> v; sx = edge_s -> x; \
         edge_s ++; \
-        if (topo_useless[a]) continue; \
         if (fx_min_##tid > 5LL * sx || sx > 3LL * fx_max_##tid) continue; \
         \
         if (bck_step_visit_##tid[a] == starter) { \
@@ -531,7 +470,6 @@ void do_fwd_search_##tid(int starter) { \
         while (a_num --) { \
             b = edge_a -> v; ax = edge_a -> x; \
             edge_a ++; \
-            if (topo_useless[b]) continue; \
             if (!check_x_y(sx, ax)) continue; \
             \
             if (bck_step_visit_##tid[b] == starter) { \
@@ -557,7 +495,6 @@ void do_fwd_search_##tid(int starter) { \
             while (b_num --) { \
                 c = edge_b -> v; bx = edge_b -> x; \
                 edge_b ++; \
-                if (topo_useless[c]) continue; \
                 if (c == a) continue; \
                 if (!check_x_y(ax, bx)) continue; \
                 \
@@ -584,7 +521,6 @@ void do_fwd_search_##tid(int starter) { \
                 while (c_num --) { \
                     d = edge_c -> v; cx = edge_c -> x; \
                     edge_c ++; \
-                    if (topo_useless[d]) continue; \
                     if (d == a || d == b) continue; \
                     if (!check_x_y(bx, cx)) continue; \
                     \
@@ -616,7 +552,7 @@ void do_search_##tid(int starter) { \
         answer_header_##tid[i][starter] = answer_num_##tid[i]; \
     } \
     \
-    if (!topo_useless[starter] && useful_starter[starter] == 3 && do_bck_search_##tid(starter)) { \
+    if (do_bck_search_##tid(starter)) { \
         do_fwd_search_##tid(starter); \
     } \
     \
@@ -630,12 +566,18 @@ void do_search_##tid(int starter) { \
 #define def_search_thr(tid) \
 void* search_##tid(void* args) { \
     malloc_##tid(); \
-    int u; \
+    int u = -1; \
     while (true) { \
-        u = __sync_fetch_and_add(&global_assign_num, 1); \
+        u = __sync_fetch_and_add(&global_assign_num, 100); \
         if (u >= node_num) break; \
-        global_assign[u] = tid; \
-        do_search_##tid(u); \
+        for (int i=0; i<100; ++i) { \
+            global_assign[u] = -1; \
+            if (useful_starter[u] != 3) continue; \
+            global_assign[u] = tid; \
+            do_search_##tid(u); \
+            if (u ++ >= node_num) break; \
+        } \
+        if (u >= node_num) break; \
     } \
     for (int i=0; i<5; ++i) { \
         total_answer_num_##tid += answer_num_##tid[i]; \
@@ -728,6 +670,7 @@ void deserialize(char* buffer, int& buffer_index, int id, int from, int to) {
         default:
             break;
         }
+        if (global_assign[u] == -1) continue;
         if (id == 0)
             for (int i=tailer-1; i>=header; --i) {
                 deserialize_answer(buffer, buffer_index, local_answer + i, id);
