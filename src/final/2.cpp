@@ -1,3 +1,10 @@
+// 去掉循环展开，保留hash和sort，但是sort之后不用hash映射结果
+// merge read filter build
+// 新增逗号绑定到buffer上
+// 多线程build
+// 基数排序，不去重
+// 新版sort
+// back2 放在 back3里面
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -19,12 +26,12 @@
 #include <errno.h>
 #include <stdio.h>
 
-// #define INPUT_PATH     "resources/pretest.txt"
-// #define INPUT_PATH     "resources/test_data.txt"
-// #define OUTPUT_PATH    "output/result.txt"
+#define INPUT_PATH     "resources/test_data_t.txt"
+// #define INPUT_PATH     "resources/new_test_data.txt"
+#define OUTPUT_PATH    "output/result.txt"
 
-#define INPUT_PATH  "/data/test_data.txt"
-#define OUTPUT_PATH "/projects/student/result.txt"
+// #define INPUT_PATH  "/data/test_data.txt"
+// #define OUTPUT_PATH "/projects/student/result.txt"
 
 #define MAX_NODE               4000000
 #define MAX_EDGE               2000000
@@ -56,144 +63,20 @@ void* fast_memcpy(void* dst, void* src, size_t size) {
     return dst;
 }
 
-
-
-
-
-int CACHE_LINE_ALIGN data[MAX_EDGE][3];
-int CACHE_LINE_ALIGN data_num;
-
-int CACHE_LINE_ALIGN data_rev_mapping[MAX_NODE];
-int CACHE_LINE_ALIGN node_num = 0;
-
-
-
-void read_input() {
-    int fd = open(INPUT_PATH, O_RDONLY);
-    if (fd == -1) {
-        printf("fail to open\n"); fflush(stdout);
-        exit(0);
-    }
-    size_t size = lseek(fd, 0, SEEK_END);
-    printf("size: %d\n", (int) size); fflush(stdout);
-    char *buffer = (char*)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
-    printf("buf: %lld\n", buffer); fflush(stdout);
-    
-
-    int x = 0;
-    int* local_data = &data[0][0];
-    for (int i=0; i<size; ++i) {
-        if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) {
-            *local_data = x;
-            local_data ++;
-            x = 0;
-        } else if (buffer[i] >= '0' && buffer[i] <= '9') {
-            x = x * 10 + buffer[i] - '0';
-        }
-    }
-    data_num = (local_data - &data[0][0]) / 3;
-
-    printf("over\n"); fflush(stdout);
-
-    std::unordered_map<int, int> hashmap;
-    for (int i=0; i<data_num; ++i) {
-        x = data[i][0];
-        if (hashmap.find(x) == hashmap.end()) {
-            hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
-        }
-        x = data[i][1];
-        if (hashmap.find(x) == hashmap.end()) {
-            hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
-        }
-    }
-
-    
-
-    std::sort(data_rev_mapping, data_rev_mapping + node_num);
-
-    
-
-    for (int i=0; i<node_num; ++i) {
-        hashmap[data_rev_mapping[i]] = i;
-    }
-
-
-    for (int i=0; i<data_num; ++i) {
-        data[i][0] = hashmap[data[i][0]];
-        data[i][1] = hashmap[data[i][1]];
-    }
-    munmap((void *)buffer, size);
-    close(fd);
-    printf("node num: %d\n", node_num);
-}
-
-
-
-
-
-
-
-int useful_edge_num = 0;
-
-void value_filter() {
-    int* malloc_all = (int*) malloc(sizeof(int) * node_num * 4);
-    memset(malloc_all, -1, sizeof(malloc_all));
-
-    int u, v, x, *u_ptr, *v_ptr;
-    for (int i=0; i<data_num; ++i) {
-        u = data[i][0]; v = data[i][1]; x = data[i][2];
-        u_ptr = malloc_all + (u << 2);
-        v_ptr = malloc_all + (v << 2);
-        if (u_ptr[2] == -1) {
-            u_ptr[2] = u_ptr[3] = x;
-        } else {
-            u_ptr[2] = std::min(u_ptr[2], x);
-            u_ptr[3] = std::max(u_ptr[3], x);
-        }
-
-        if (v_ptr[0] == -1) {
-            v_ptr[0] = v_ptr[1] = x;
-        } else {
-            v_ptr[0] = std::min(v_ptr[0], x);
-            v_ptr[1] = std::max(v_ptr[1], x);
-        }
-    }
-
-    for (int i=0; i<data_num; ++i) {
-        u = data[i][0]; v = data[i][1]; x = data[i][2];
-        u_ptr = malloc_all + (u << 2);
-        v_ptr = malloc_all + (v << 2);
-
-        if (5LL * x < u_ptr[0] || 3LL * u_ptr[1] < x || 5LL * v_ptr[3] < x || 3LL * x < v_ptr[2] || u == v) {
-            data[i][2] = -1;
-            // printf("remove: %d %d\n", data_rev_mapping[u], data_rev_mapping[v]);
-        } else {
-            useful_edge_num ++;
-            // printf("keep: %d %d\n", data_rev_mapping[u], data_rev_mapping[v]);
-        }
-    }
-
-    free(malloc_all);
-}
-
-void filter_edges() {
-    value_filter();
-}
-
-inline bool check_x_y(int x, int y) {
-    return x <= 5LL * y && y <= 3LL * x;
-}
-
-inline bool not_check_x_y(int x, int y) {
-    return x > 5LL * y || y > 3LL * x;
-}
+// 每个长度11的char，第一位表示长度
+char CACHE_LINE_ALIGN integer_buffer[MAX_NODE][12];
+char CACHE_LINE_ALIGN integer_buffer_size[MAX_NODE];
+void create_integer_buffer_0();
+void create_integer_buffer_i(int i);
+inline void deserialize_int(char* buffer, int& buffer_index, int x);
+inline void deserialize_id(char* buffer, int& buffer_index, int x);
+inline void deserialize_id_slow(char* buffer, int& buffer_index, int x);
 
 struct Edge {
-    int v, x;
+    int v;
+    long long x;
     Edge() {}
-    Edge(int v, int x): v(v), x(x) {}
+    Edge(int v, long long x): v(v), x(x) {}
 };
 
 struct EdgeVec {
@@ -207,15 +90,44 @@ Edge *__fwd_edges, *__bck_edges;
 EdgeVec *fwd_edges_vec, *bck_edges_vec;
 EdgeVec *fwd_two_step_edge_vec;
 
-
+pthread_barrier_t fast_edge_edge_barrier;
 
 #define def_fast_edge_edge(tid) \
 Edge *__fwd_edge_edge_##tid; \
 void* build_edge_edge_##tid(void* args) { \
     __fwd_edge_edge_##tid = (Edge*) malloc(sizeof(Edge) * 10000000); \
-    int head, tail, edge_edge_num = 0, index, u, v, x, y, i, j, w; \
+    int head, tail, edge_edge_num = 0, index, u, v, i, j, w; \
+    long long x, y; \
     head = tid * node_num / 4; tail = (tid + 1) * node_num / 4; \
     edge_edge_num = 0; \
+    if (head == 0) { \
+        u = head ++; \
+        std::sort(fwd_edges_vec[u].from, fwd_edges_vec[u].from + fwd_edges_vec[u].length, \
+            [](Edge& a, Edge& b) { \
+                return a.v < b.v; \
+            }); \
+        std::sort(bck_edges_vec[u].from, bck_edges_vec[u].from + bck_edges_vec[u].length, \
+            [](Edge& a, Edge& b) { \
+                return a.v < b.v; \
+            }); \
+        create_integer_buffer_0(); \
+    } \
+    for (u=head; u<tail; ++u) { \
+        std::sort(fwd_edges_vec[u].from, fwd_edges_vec[u].from + fwd_edges_vec[u].length, \
+            [](Edge& a, Edge& b) { \
+                return a.v < b.v; \
+            }); \
+    } \
+    for (u=head; u<tail; ++u) { \
+        std::sort(bck_edges_vec[u].from, bck_edges_vec[u].from + bck_edges_vec[u].length, \
+            [](Edge& a, Edge& b) { \
+                return a.v < b.v; \
+            }); \
+    } \
+    for (u=head; u<tail; ++u) { \
+        create_integer_buffer_i(u); \
+    } \
+    pthread_barrier_wait(&fast_edge_edge_barrier); \
     for (u=head; u<tail; ++u) { \
         for (i=0; i<fwd_edges_vec[u].length; ++i) { \
             v = (fwd_edges_vec[u].from + i) -> v; \
@@ -227,7 +139,7 @@ void* build_edge_edge_##tid(void* args) { \
             for (j=0; j<fwd_edges_vec[v].length; ++j) { \
                 w = (fwd_edges_vec[v].from + j) -> v; \
                 y = (fwd_edges_vec[v].from + j) -> x; \
-                if (w == u || not_check_x_y(x, y)) continue; \
+                if (w == u || x > 5LL * y || y > 3LL * x) continue; \
                 __fwd_edge_edge_##tid[edge_edge_num].v = w; \
                 __fwd_edge_edge_##tid[edge_edge_num].x = y; \
                 edge_edge_num ++; \
@@ -238,43 +150,226 @@ void* build_edge_edge_##tid(void* args) { \
     return NULL; \
 }
 
+
+
+
+int CACHE_LINE_ALIGN data[MAX_EDGE][2];
+long long data_value[MAX_EDGE];
+int CACHE_LINE_ALIGN data_num;
+
+int CACHE_LINE_ALIGN data_rev_mapping[MAX_NODE];
+int CACHE_LINE_ALIGN node_num = 0;
+int useful_edge_num = 0;
+
+int data_assign_mapper[MAX_NODE];
+
+struct Pair {
+    int x, ptr;
+    Pair() {}
+    Pair(int x, int ptr): x(x), ptr(ptr) {}
+};
+
+Pair pair_vec[MAX_NODE];
+
 def_fast_edge_edge(0)
 def_fast_edge_edge(1)
 def_fast_edge_edge(2)
 def_fast_edge_edge(3)
 
-void build_edges() {
-    __fwd_edges = (Edge*) malloc(sizeof(Edge) * useful_edge_num);
-    __bck_edges = (Edge*) malloc(sizeof(Edge) * useful_edge_num);
+int radix_counter0[256], radix_counter8[256], radix_counter16[256], radix_counter24[256];
+int radix_from[256];
+int *radix_index;
+int *radix_index_a, *radix_index_b;
+
+void do_hash() {
+    int i, x;
+    std::unordered_map<int, int> hashmap;
+    for (i=0; i<data_num; ++i) {
+        x = data[i][0];
+        if (hashmap.find(x) == hashmap.end()) {
+            hashmap[x] = node_num;
+            data[i][0] = node_num;
+            pair_vec[node_num] = {x, node_num};
+            node_num ++;
+        } else {
+            data[i][0] = hashmap[x];
+        }
+        x = data[i][1];
+        if (hashmap.find(x) == hashmap.end()) {
+            hashmap[x] = node_num;
+            data[i][1] = node_num;
+            pair_vec[node_num] = {x, node_num};
+            node_num ++;
+        } else {
+            data[i][1] = hashmap[x];
+        }
+    }
+
+    std::sort(pair_vec, pair_vec + node_num, [](Pair a, Pair b) {
+        return a.x < b.x;
+    });
+    
+    for (i=0; i<node_num; ++i) {
+        data_rev_mapping[i] = pair_vec[i].x;
+        data_assign_mapper[pair_vec[i].ptr] = i;
+    }
+}
+
+void read_input() {
+    int fd = open(INPUT_PATH, O_RDONLY);
+    if (fd == -1) {
+        printf("fail to open\n"); fflush(stdout);
+        exit(0);
+    }
+    size_t size = lseek(fd, 0, SEEK_END);
+    char *buffer = (char*)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    
+
+    int x = 0, i=0, mod, index = 0;
+    int u, v;
+    long long *u_ptr, *v_ptr;
+    long long xx;
+
+
+    i = 0; data_num = 0;
+    bool flag;
+    int dot_size;
+    while (i < size-1) {
+        x = 0;
+        while (true) {
+            if (buffer[i] == ',') {
+                break;
+            } else {
+                x = x * 10 + buffer[i] - '0';
+            }
+            ++ i;
+        }
+        ++ i;
+        data[data_num][0] = x;
+        x = 0;
+        while (true) {
+            if (buffer[i] == ',') {
+                break;
+            } else {
+                x = x * 10 + buffer[i] - '0';
+            }
+            ++ i;
+        }
+        ++ i;
+        data[data_num][1] = x;
+        xx = 0; flag = false;
+        while (true) {
+            if (i == size || buffer[i] == '\n') {
+                break;
+            } else if (buffer[i] == '.') {
+                flag = true;
+                break;
+            } else if (buffer[i] >= '0' && buffer[i] <= '9') {
+                xx = xx * 10 + buffer[i] - '0';
+            }
+            ++ i;
+        }
+        ++ i;
+        xx *= 100;
+        if (flag) {
+            x = 0; dot_size = 0;
+            while (true) {
+                if (i == size || buffer[i] == '\n') {
+                    break;
+                } else if (buffer[i] >= '0' && buffer[i] <= '9') {
+                    x = x * 10 + buffer[i] - '0';
+                    dot_size ++;
+                }
+                ++ i;
+            }
+            ++ i;
+            if (dot_size == 1) xx += x * 10;
+            if (dot_size == 2) xx += x;
+        }
+        data_value[data_num] = xx;
+        data_num ++;
+    }
+    munmap((void *)buffer, size);
+    close(fd);
+    
+
+    // printf("data_num: %d\n", data_num);
+    // for (int i=0; i<data_num; ++i) {
+    //     printf("%d %d %lld\n", data[i][0], data[i][1], data_value[i]);
+    // }
+    // printf("\n");
+
+
+    do_hash();
+
+    // return;
+
+    // hash & filter value
+
+    long long* malloc_all = (long long*) malloc(sizeof(long long) * node_num * 4);
+    memset(malloc_all, -1, sizeof(long long) * node_num * 4);
+
+    for (i=0; i<data_num; ++i) {
+        u = data[i][0] = data_assign_mapper[data[i][0]];
+        v = data[i][1] = data_assign_mapper[data[i][1]];
+        xx = data_value[i];
+
+        u_ptr = malloc_all + (u << 2);
+        v_ptr = malloc_all + (v << 2);
+        if (u_ptr[2] == -1) {
+            u_ptr[2] = u_ptr[3] = xx;
+        } else {
+            u_ptr[2] = std::min(u_ptr[2], xx);
+            u_ptr[3] = std::max(u_ptr[3], xx);
+        }
+
+        if (v_ptr[0] == -1) {
+            v_ptr[0] = v_ptr[1] = xx;
+        } else {
+            v_ptr[0] = std::min(v_ptr[0], xx);
+            v_ptr[1] = std::max(v_ptr[1], xx);
+        }
+    }
+
+    
+
+    // filter value & build edge
+    __fwd_edges = (Edge*) malloc(sizeof(Edge) * data_num);
+    __bck_edges = (Edge*) malloc(sizeof(Edge) * data_num);
     fwd_edges_vec = (EdgeVec*) malloc(sizeof(EdgeVec) * node_num);
     bck_edges_vec = (EdgeVec*) malloc(sizeof(EdgeVec) * node_num);
 
-    fwd_two_step_edge_vec = (EdgeVec*) malloc(sizeof(EdgeVec) * useful_edge_num);
+    fwd_two_step_edge_vec = (EdgeVec*) malloc(sizeof(EdgeVec) * data_num);
 
     memset(fwd_edges_vec, 0, sizeof(EdgeVec) * node_num);
     memset(bck_edges_vec, 0, sizeof(EdgeVec) * node_num);
 
-    int u, v, x;
-    for (int i=0; i<data_num; ++i) {
-        x = data[i][2];
-        if (x == -1) continue;
-        u = data[i][0]; v = data[i][1];
+    printf("data num: %d\n", data_num);
 
-        if (v < u) searchable_nodes[0][v] = true;
-        if (v > u) searchable_nodes[1][u] = true;
+    for (i=0; i<data_num; ++i) {
+        u = data[i][0]; v = data[i][1]; xx = data_value[i];
+        u_ptr = malloc_all + (u << 2);
+        v_ptr = malloc_all + (v << 2);
 
-        fwd_edges_vec[u].length ++;
-        bck_edges_vec[v].length ++;
+        // if (5LL * xx < u_ptr[0] || 3LL * u_ptr[1] < xx || 5LL * v_ptr[3] < xx || 3LL * xx < v_ptr[2]) {
+        //     data_value[i] = -1LL;
+        // } else {
+            useful_edge_num ++;
+            if (v < u) searchable_nodes[0][v] = true;
+            if (v > u) searchable_nodes[1][u] = true;
+
+            fwd_edges_vec[u].length ++;
+            bck_edges_vec[v].length ++;
+        // }
     }
 
-    // for (int i=0; i<node_num; ++i) {
-    //     printf("[%d]: %d %d\n", data_rev_mapping[i], fwd_edges_vec[i].length, bck_edges_vec[i].length);
-    // }
+    printf("useful edge: %d\n", useful_edge_num);
 
+    free(malloc_all);
+
+    // build edge
     int fwd_num = 0, bck_num = 0;
-    for (int i=0; i<node_num; ++i) {
-        searchable_nodes[0][u] &= searchable_nodes[1][u];
-
+    for (i=0; i<node_num; ++i) {
         fwd_edges_vec[i].from = __fwd_edges + fwd_num;
         fwd_num += fwd_edges_vec[i].length;
         fwd_edges_vec[i].length = 0;
@@ -286,28 +381,26 @@ void build_edges() {
 
     // build edges
     Edge* edge;
-    for (int i=0; i<data_num; ++i) {
-        x = data[i][2];
-        if (x == -1) continue;
+    for (i=0; i<data_num; ++i) {
+        xx = data_value[i];
+        if (xx == -1LL) continue;
         u = data[i][0]; v = data[i][1];
 
+        
+        // printf("xxx %d %d %lld\n", u, v, xx);
+
         edge = fwd_edges_vec[u].from + fwd_edges_vec[u].length ++;
-        edge->v = v; edge->x = x;
+        edge->v = v; edge->x = xx;
 
         edge = bck_edges_vec[v].from + bck_edges_vec[v].length ++;
-        edge->v = u; edge->x = x;
+        edge->v = u; edge->x = xx;
     }
 
-    for (u=0; u<node_num; ++u) {
-        std::sort(fwd_edges_vec[u].from, fwd_edges_vec[u].from + fwd_edges_vec[u].length,
-            [](Edge& a, Edge& b) {
-                return a.v < b.v;
-            });
-        std::sort(bck_edges_vec[u].from, bck_edges_vec[u].from + bck_edges_vec[u].length,
-            [](Edge& a, Edge& b) {
-                return a.v < b.v;
-            });
-    }
+    printf("bck edge size: %d\n", bck_edges_vec[data_rev_mapping[179]].length);
+
+    printf("bck edge size: %d\n", bck_edges_vec[179].length);
+
+    pthread_barrier_init(&fast_edge_edge_barrier, NULL, 4);
 
     pthread_t thr[4];
     pthread_create(thr + 0, NULL, build_edge_edge_0, NULL);
@@ -316,7 +409,27 @@ void build_edges() {
     pthread_create(thr + 3, NULL, build_edge_edge_3, NULL);
     
     for (int i=0; i<4; ++i) pthread_join(thr[i], NULL);
-    // pthread_join(thr[0], NULL);
+    // printf("bck edge size: %d\n", bck_edges_vec[data_rev_mapping[179]].length);
+    // for (int i=0; i<node_num; ++i) {
+    //     printf("%d: ", data_rev_mapping[i]);
+    //     for (int j=0; j<fwd_edges_vec[i].length; ++j) {
+    //         edge = fwd_edges_vec[i].from + j;
+    //         printf("%d(%lld) ", data_rev_mapping[edge->v], edge->x);
+    //     }
+    //     printf("\n");
+    // }
+    // printf("\n");
+    // for (int i=0; i<node_num; ++i) {
+    //     printf("%d %d %d: ", i, data_rev_mapping[i], bck_edges_vec[i].length);
+    //     for (int j=0; j<bck_edges_vec[i].length; ++j) {
+    //         edge = bck_edges_vec[i].from + j;
+    //         printf("%d(%lld) ", data_rev_mapping[edge->v], edge->x);
+    //     }
+    //     printf("\n");
+    // }
+    
+    // printf("finish read\n"); fflush(stdout);
+    
 }
 
 bool topo_useless[MAX_NODE];
@@ -345,17 +458,6 @@ void topo_filter() {
     }
 }
 
-// 每个长度11的char，第一位表示长度
-char CACHE_LINE_ALIGN integer_buffer[MAX_NODE][11];
-char CACHE_LINE_ALIGN integer_buffer_size[MAX_NODE];
-void create_integer_buffer();
-inline void deserialize_int(char* buffer, int& buffer_index, int x);
-inline void deserialize_id(char* buffer, int& buffer_index, int x);
-inline void deserialize_id_slow(char* buffer, int& buffer_index, int x);
-
-
-
-
 
 
 
@@ -363,25 +465,27 @@ inline void deserialize_id_slow(char* buffer, int& buffer_index, int x);
 #define INVALID_NODE    -1
 
 struct Answer {
-    int size, s, a, b, c, d, e, f;
+    int size, s, a, b, c, d, e, f, g;
     Answer() {}
-    Answer(int size, int s, int a, int b, int c = INVALID_NODE, int d = INVALID_NODE, int e = INVALID_NODE, int f = INVALID_NODE):
-        size(size), s(s), a(a), b(b), c(c), d(d), e(e), f(f) {}
+    Answer(int size, int s, int a, int b, int c = INVALID_NODE,
+     int d = INVALID_NODE, int e = INVALID_NODE, int f = INVALID_NODE, int g = INVALID_NODE):
+        size(size), s(s), a(a), b(b), c(c), d(d), e(e), f(f), g(g) {}
 };
 
 struct BackTwoStep {
     long long value;
-    int e, f, ex, fx;
+    int e, f;
+    long long ex, fx;
     BackTwoStep() {}
-    BackTwoStep(int e, int f, int ex, int fx):
+    BackTwoStep(int e, int f, long long ex, long long fx):
         e(e), f(f), ex(ex), fx(fx) { value = (1LL << 30) * e + f;}
 };
 
 // 可以进一步利用缓存，不适用two_step指针
 struct BackStep {
-    BackTwoStep *two_step;
     BackStep *nxt, *nxt_far;
-    int dx, size;
+    int size, e, f;
+    long long dx, fx;
 };
 
 struct Bound {
@@ -399,9 +503,9 @@ int total_answer_num = 0;
 // header和tailer数组可以合并成一个，缓存
 
 #define def_declr(tid) \
-Answer *answer_##tid[5]; \
-Bound* answer_bound_##tid[5]; \
-int answer_num_##tid[5]; \
+Answer *answer_##tid[6]; \
+Bound* answer_bound_##tid[6]; \
+int answer_num_##tid[6]; \
 int total_answer_num_##tid; \
 \
 BackTwoStep *bck_two_step_vec_##tid; \
@@ -410,11 +514,11 @@ EdgeVec *edge_vec_##tid, *fwd_two_step_edge_vec_##tid; \
 bool *bck_step_visit_##tid; \
 int* bck_step_visit_queue_##tid, bck_step_visit_queue_num_##tid; \
 \
-int fx_min_##tid, fx_max_##tid; \
+long long fx_min_##tid, fx_max_##tid; \
 void malloc_##tid() { \
     bck_two_step_vec_##tid = (BackTwoStep*) \
         malloc(sizeof(BackTwoStep) * MILLION); \
-    for (int i=0; i<5; ++i) { \
+    for (int i=0; i<6; ++i) { \
         answer_##tid[i] = (Answer*) malloc(sizeof(Answer) * 10000000); \
         answer_bound_##tid[i] = (Bound*) malloc(sizeof(Bound) * node_num); \
     } \
@@ -444,8 +548,9 @@ void free_##tid() { \
 #define def_bak_search(tid) \
 bool do_bck_search_##tid(int starter) { \
     int bck_two_step_num = 0, bck_step_num = 0; \
-    fx_min_##tid = 2147483647; fx_max_##tid = 0; \
-    int d, e, f, fx, ex, dx, index; \
+    fx_min_##tid = 214748364700000LL; fx_max_##tid = 0; \
+    int d, e, f, index; \
+    long long fx, ex, dx; \
     Edge *edge_f, *edge_e, *edge_d; \
     edge_f = bck_edges_vec[starter].from + bck_edges_vec[starter].length; \
     while (edge_f > bck_edges_vec[starter].from) { \
@@ -459,7 +564,7 @@ bool do_bck_search_##tid(int starter) { \
             e = edge_e -> v; ex = edge_e -> x; \
             if (e <= starter) break; \
             if (topo_useless[e]) continue; \
-            if (not_check_x_y(ex, fx)) continue; \
+            if (ex > 5LL * fx || fx > 3LL * ex) continue; \
             bck_two_step_vec_##tid[bck_two_step_num ++] = {e, f, ex, fx}; \
         } \
     } \
@@ -476,7 +581,7 @@ bool do_bck_search_##tid(int starter) { \
     while (step > bck_two_step_vec_##tid) { \
         step --; \
         e = step -> e; ex = step -> ex; \
-        f = step -> f; \
+        f = step -> f; fx = step -> fx; \
         size_ef = integer_buffer_size[e] + integer_buffer_size[f]; \
         \
         edge_d = bck_edges_vec[e].from + bck_edges_vec[e].length; \
@@ -486,12 +591,12 @@ bool do_bck_search_##tid(int starter) { \
             if (d < starter) break; \
             if (topo_useless[d]) continue; \
             if (d == f) continue; \
-            if (not_check_x_y(dx, ex)) continue; \
+            if (dx > 5LL * ex || ex > 3LL * dx) continue; \
             if (d == starter) { \
                 f = step -> f; fx = step -> fx; \
-                if (check_x_y(fx, dx)) { \
+                if (fx <= 5LL * dx && dx <= 3LL * fx) { \
                     index = answer_num_##tid[0] ++; \
-                    answer_##tid[0][index] = {size_ef + size_s + 3, starter, e, f}; \
+                    answer_##tid[0][index] = {size_ef + size_s, starter, e, f}; \
                 } \
             } else { \
                 size_d = integer_buffer_size[d]; \
@@ -503,11 +608,13 @@ bool do_bck_search_##tid(int starter) { \
                     bck_step -> nxt_far = NULL; \
                 } else { \
                     bck_step -> nxt_far = bck_step_header_##tid[d] -> nxt_far; \
-                    if (step -> e != (bck_step_header_##tid[d] -> two_step) -> e) { \
+                    if (step -> e != bck_step_header_##tid[d] -> e) { \
                         bck_step -> nxt_far = bck_step_header_##tid[d]; \
                     } \
                 } \
-                bck_step -> two_step = step; \
+                bck_step -> e = e; \
+                bck_step -> f = f; \
+                bck_step -> fx = fx; \
                 bck_step -> nxt = bck_step_header_##tid[d]; \
                 bck_step -> dx = dx; \
                 bck_step -> size = size_ef + size_d + size_s; \
@@ -540,12 +647,13 @@ void refresh_edge_edge_vec_##tid(int index, int s) { \
 
 #define def_fwd_search(tid) \
 void do_fwd_search_##tid(int starter) { \
-    int a, b, c, d, e, f, sx, ax, bx, cx, dx, fx, index, edge_edge_index; \
-    int size_a, size_ab, size_abc, size_bck; \
-    int s_num, a_num, b_num, c_num; \
+    int a, b, c, d, e, f, g, index, edge_edge_index; \
+    long long sx, ax, bx, cx, dx, fx, gx; \
+    int size_a, size_ab, size_abc, size_bck, size_abcd; \
+    int s_num, a_num, b_num, c_num, d_num; \
     BackStep * bck_step; \
     \
-    Edge *edge_s, *edge_a, *edge_b, *edge_c; \
+    Edge *edge_s, *edge_a, *edge_b, *edge_c, *edge_d; \
     refresh_edge_vec_##tid(starter, starter); \
     \
     s_num = edge_vec_##tid[starter].length; \
@@ -559,17 +667,18 @@ void do_fwd_search_##tid(int starter) { \
         if (bck_step_visit_##tid[a]) { \
             bck_step = bck_step_header_##tid[a]; \
             while (bck_step != NULL) { \
-                e = bck_step -> two_step -> e; \
-                f = bck_step -> two_step -> f; \
+                e = bck_step -> e; \
+                f = bck_step -> f; \
                 dx = bck_step -> dx; \
-                fx = bck_step -> two_step -> fx; \
+                fx = bck_step -> fx; \
                 size_bck = bck_step -> size; \
-                if (not_check_x_y(fx, sx) || not_check_x_y(sx, dx)){ \
+                if (fx > 5LL * sx || sx > 3LL * fx \
+                    || sx > 5LL * dx || dx > 3LL * sx){ \
                     bck_step = bck_step -> nxt; \
                     continue; \
                 } else { \
                     index = answer_num_##tid[1] ++; \
-                    answer_##tid[1][index] = {size_bck + 4, starter, a, e, f}; \
+                    answer_##tid[1][index] = {size_bck, starter, a, e, f}; \
                 } \
                 bck_step = bck_step -> nxt; \
             } \
@@ -583,13 +692,13 @@ void do_fwd_search_##tid(int starter) { \
             b = edge_a -> v; ax = edge_a -> x; \
             edge_a ++; \
             if (topo_useless[b]) continue; \
-            if (not_check_x_y(sx, ax)) continue; \
+            if (sx > 5LL * ax || ax > 3LL * sx) continue; \
             \
             if (bck_step_visit_##tid[b]) { \
                 bck_step = bck_step_header_##tid[b]; \
                 while (bck_step != NULL) { \
-                    e = bck_step -> two_step -> e; \
-                    f = bck_step -> two_step -> f; \
+                    e = bck_step -> e; \
+                    f = bck_step -> f; \
                     if (b == f || a == f) { \
                         bck_step = bck_step -> nxt; \
                         continue; \
@@ -598,14 +707,15 @@ void do_fwd_search_##tid(int starter) { \
                         continue; \
                     } else { \
                         dx = bck_step -> dx; \
-                        fx = bck_step -> two_step -> fx; \
+                        fx = bck_step -> fx; \
                         size_bck = bck_step -> size; \
                         bck_step = bck_step -> nxt; \
-                        if (not_check_x_y(fx, sx) || not_check_x_y(ax, dx)) { \
+                        if (fx > 5LL * sx || sx > 3LL * fx \
+                            || ax > 5LL * dx || dx > 3LL * ax) { \
                             continue; \
                         } else { \
                             index = answer_num_##tid[2] ++; \
-                            answer_##tid[2][index] = {size_bck + size_a + 5, starter, a, b, e, f}; \
+                            answer_##tid[2][index] = {size_bck + size_a, starter, a, b, e, f}; \
                         } \
                     } \
                 } \
@@ -617,17 +727,16 @@ void do_fwd_search_##tid(int starter) { \
             size_ab = size_a + integer_buffer_size[b]; \
             while (b_num --) { \
                 c = edge_b -> v; bx = edge_b -> x; \
-                edge_edge_index = (edge_b - __fwd_edges); \
                 edge_b ++; \
                 if (topo_useless[c]) continue; \
                 if (c == a) continue; \
-                if (not_check_x_y(ax, bx)) continue; \
+                if (ax > 5LL * bx || bx > 3LL * ax) continue; \
                 \
                 if (bck_step_visit_##tid[c]) { \
                     bck_step = bck_step_header_##tid[c]; \
                     while (bck_step != NULL) { \
-                        e = bck_step -> two_step -> e; \
-                        f = bck_step -> two_step -> f; \
+                        e = bck_step -> e; \
+                        f = bck_step -> f; \
                         if (a == f || b == f || c == f) { \
                             bck_step = bck_step -> nxt; \
                             continue; \
@@ -636,113 +745,90 @@ void do_fwd_search_##tid(int starter) { \
                             continue; \
                         } else  { \
                             dx = bck_step -> dx; \
-                            fx = bck_step -> two_step -> fx; \
+                            fx = bck_step -> fx; \
                             size_bck = bck_step -> size; \
                             bck_step = bck_step -> nxt; \
-                            if (not_check_x_y(fx, sx) || not_check_x_y(bx, dx)) { \
+                            if (fx > 5LL * sx || sx > 3LL * fx \
+                                || bx > 5LL * dx || dx > 3LL * bx) { \
                                 continue; \
                             } else { \
                                 index = answer_num_##tid[3] ++; \
-                                answer_##tid[3][index] = {size_bck + size_ab + 6, starter, a, b, c, e, f}; \
+                                answer_##tid[3][index] = {size_bck + size_ab, starter, a, b, c, e, f}; \
                             } \
                         } \
                     } \
                 } \
                 \
-                refresh_edge_edge_vec_##tid(edge_edge_index, starter); \
-                c_num = fwd_two_step_edge_vec_##tid[edge_edge_index].length; \
-                edge_c = fwd_two_step_edge_vec_##tid[edge_edge_index].from; \
+                refresh_edge_vec_##tid(c, starter); \
+                c_num = edge_vec_##tid[c].length; \
+                edge_c = edge_vec_##tid[c].from; \
                 size_abc = size_ab + integer_buffer_size[c]; \
-                if (c_num & 1) { \
+                while (c_num > 0) { \
                     c_num --; \
                     d = edge_c -> v; cx = edge_c -> x; \
+                    edge_edge_index = (edge_c - __fwd_edges); \
                     edge_c ++; \
+                    if (bx > 5LL * cx || cx > 3LL * bx) continue; \
                     if (!topo_useless[d] && d != a) { \
+                        \
+                        if (bck_step_visit_##tid[d]) { \
+                            bck_step = bck_step_header_##tid[d]; \
+                            while (bck_step != NULL) { \
+                                e = bck_step -> e; \
+                                f = bck_step -> f; \
+                                if (a == f || b == f || c == f || d == f) { \
+                                    bck_step = bck_step -> nxt; \
+                                    continue; \
+                                } else if (a == e || b == e || c == e) { \
+                                    bck_step = bck_step -> nxt_far; \
+                                    continue; \
+                                } else { \
+                                    dx = bck_step -> dx; \
+                                    fx = bck_step -> fx; \
+                                    size_bck = bck_step -> size; \
+                                    bck_step = bck_step -> nxt; \
+                                    if (fx > 5LL * sx || sx > 3LL * fx \
+                                        || cx > 5LL * dx || dx > 3LL * cx) { \
+                                        continue; \
+                                    } else { \
+                                        index = answer_num_##tid[4] ++; \
+                                        answer_##tid[4][index] = {size_bck + size_abc, starter, a, b, c, d, e, f}; \
+                                    } \
+                                } \
+                            } \
+                        } \
+                    } \
                     \
-                        if (bck_step_visit_##tid[d]) { \
-                            bck_step = bck_step_header_##tid[d]; \
+                    refresh_edge_edge_vec_##tid(edge_edge_index, starter); \
+                    d_num = fwd_two_step_edge_vec_##tid[edge_edge_index].length; \
+                    edge_d = fwd_two_step_edge_vec_##tid[edge_edge_index].from; \
+                    size_abcd = size_abc + integer_buffer_size[d]; \
+                    while (d_num > 0) { \
+                        d_num --; \
+                        g = edge_d -> v; dx = edge_d -> x; \
+                        edge_d ++; \
+                        if (bck_step_visit_##tid[g]) { \
+                            bck_step = bck_step_header_##tid[g]; \
                             while (bck_step != NULL) { \
-                                e = bck_step -> two_step -> e; \
-                                f = bck_step -> two_step -> f; \
-                                if (a == f || b == f || c == f || d == f) { \
+                                e = bck_step -> e; \
+                                f = bck_step -> f; \
+                                if (a ==f || b == f || c == f || d == f || g == f) { \
                                     bck_step = bck_step -> nxt; \
                                     continue; \
-                                } else if (a == e || b == e || c == e) { \
+                                } else if (a == e || b == e || c == e || d == e) { \
                                     bck_step = bck_step -> nxt_far; \
                                     continue; \
                                 } else { \
                                     dx = bck_step -> dx; \
-                                    fx = bck_step -> two_step -> fx; \
+                                    fx = bck_step -> fx; \
                                     size_bck = bck_step -> size; \
                                     bck_step = bck_step -> nxt; \
-                                    if (not_check_x_y(fx, sx) || not_check_x_y(cx, dx)) { \
+                                    if (fx > 5LL * sx || sx > 3LL * fx \
+                                        || dx > 5LL * cx || cx > 3LL * dx) { \
                                         continue; \
                                     } else { \
-                                        index = answer_num_##tid[4] ++; \
-                                        answer_##tid[4][index] = {size_bck + size_abc + 7, starter, a, b, c, d, e, f}; \
-                                    } \
-                                } \
-                            } \
-                        } \
-                    } \
-                } \
-                while (c_num > 0) { \
-                    c_num -= 2; \
-                    d = edge_c -> v; cx = edge_c -> x; \
-                    edge_c ++; \
-                    if (!topo_useless[d] && d != a) { \
-                        \
-                        if (bck_step_visit_##tid[d]) { \
-                            bck_step = bck_step_header_##tid[d]; \
-                            while (bck_step != NULL) { \
-                                e = bck_step -> two_step -> e; \
-                                f = bck_step -> two_step -> f; \
-                                if (a == f || b == f || c == f || d == f) { \
-                                    bck_step = bck_step -> nxt; \
-                                    continue; \
-                                } else if (a == e || b == e || c == e) { \
-                                    bck_step = bck_step -> nxt_far; \
-                                    continue; \
-                                } else { \
-                                    dx = bck_step -> dx; \
-                                    fx = bck_step -> two_step -> fx; \
-                                    size_bck = bck_step -> size; \
-                                    bck_step = bck_step -> nxt; \
-                                    if (not_check_x_y(fx, sx) || not_check_x_y(cx, dx)) { \
-                                        continue; \
-                                    } else { \
-                                        index = answer_num_##tid[4] ++; \
-                                        answer_##tid[4][index] = {size_bck + size_abc + 7, starter, a, b, c, d, e, f}; \
-                                    } \
-                                } \
-                            } \
-                        } \
-                    } \
-                    d = edge_c -> v; cx = edge_c -> x; \
-                    edge_c ++; \
-                    if (!topo_useless[d] && d != a) { \
-                        \
-                        if (bck_step_visit_##tid[d]) { \
-                            bck_step = bck_step_header_##tid[d]; \
-                            while (bck_step != NULL) { \
-                                e = bck_step -> two_step -> e; \
-                                f = bck_step -> two_step -> f; \
-                                if (a == f || b == f || c == f || d == f) { \
-                                    bck_step = bck_step -> nxt; \
-                                    continue; \
-                                } else if (a == e || b == e || c == e) { \
-                                    bck_step = bck_step -> nxt_far; \
-                                    continue; \
-                                } else { \
-                                    dx = bck_step -> dx; \
-                                    fx = bck_step -> two_step -> fx; \
-                                    size_bck = bck_step -> size; \
-                                    bck_step = bck_step -> nxt; \
-                                    if (not_check_x_y(fx, sx) || not_check_x_y(cx, dx)) { \
-                                        continue; \
-                                    } else { \
-                                        index = answer_num_##tid[4] ++; \
-                                        answer_##tid[4][index] = {size_bck + size_abc + 7, starter, a, b, c, d, e, f}; \
+                                        index = answer_num_##tid[5] ++; \
+                                        answer_##tid[5][index] = {size_bck + size_abc, starter, a, b, c, d, g, e, f}; \
                                     } \
                                 } \
                             } \
@@ -756,7 +842,7 @@ void do_fwd_search_##tid(int starter) { \
 
 #define def_do_search(tid) \
 void do_search_##tid(int starter) { \
-    for (int i=0; i<5; ++i) { \
+    for (int i=0; i<6; ++i) { \
         answer_bound_##tid[i][starter].head = answer_num_##tid[i]; \
     } \
     \
@@ -767,7 +853,7 @@ void do_search_##tid(int starter) { \
         } \
     } \
     \
-    for (int i=0; i<5; ++i) { \
+    for (int i=0; i<6; ++i) { \
         answer_bound_##tid[i][starter].tail = answer_num_##tid[i]; \
     } \
     std::reverse(answer_##tid[0] + answer_bound_##tid[0][starter].head, \
@@ -784,7 +870,6 @@ void* search_##tid(void* args) { \
         u = __sync_fetch_and_add(&global_assign_num, 1); \
         if (u >= node_num) break; \
         global_assign[u] = -1; \
-        if (!searchable_nodes[0][u] || topo_useless[u]) continue; \
         global_assign[u] = tid; \
         do_search_##tid(u); \
     } \
@@ -862,8 +947,9 @@ int merge_answer() {
     def_merge_answer_for(2)
     def_merge_answer_for(3)
     def_merge_answer_for(4)
+    def_merge_answer_for(5)
 
-    printf("after merge now: %d\n", now);
+    // printf("after merge now: %d\n", now);
 
     for (int i=0; i<total_answer_num; ++i) {
         total_size += answer_all[i].size;
@@ -906,52 +992,46 @@ int total_answer_buffer_size;
 
 void deserialize_answer(char* buffer, int& buffer_index, Answer& ans) {
     deserialize_id(buffer, buffer_index, ans.s);
-    add_common
     deserialize_id(buffer, buffer_index, ans.a);
-    add_common
     deserialize_id(buffer, buffer_index, ans.b);
     if (ans.c != INVALID_NODE) {
-        add_common
         deserialize_id(buffer, buffer_index, ans.c);
         if (ans.d != INVALID_NODE) {
-            add_common
             deserialize_id(buffer, buffer_index, ans.d);
             if (ans.e != INVALID_NODE) {
-                add_common
                 deserialize_id(buffer, buffer_index, ans.e);
                 if (ans.f != INVALID_NODE) {
-                    add_common
                     deserialize_id(buffer, buffer_index, ans.f);
+                    if (ans.g != INVALID_NODE) {
+                        deserialize_id(buffer, buffer_index, ans.g);
+                    }
                 }
             }
         }
     }
-    add_break
+    buffer[buffer_index-1] = '\n';
 }
 
 void deserialize_answer_slow(char* buffer, int& buffer_index, Answer& ans) {
     deserialize_id_slow(buffer, buffer_index, ans.s);
-    add_common
     deserialize_id_slow(buffer, buffer_index, ans.a);
-    add_common
     deserialize_id_slow(buffer, buffer_index, ans.b);
     if (ans.c != INVALID_NODE) {
-        add_common
         deserialize_id_slow(buffer, buffer_index, ans.c);
         if (ans.d != INVALID_NODE) {
-            add_common
             deserialize_id_slow(buffer, buffer_index, ans.d);
             if (ans.e != INVALID_NODE) {
-                add_common
                 deserialize_id_slow(buffer, buffer_index, ans.e);
                 if (ans.f != INVALID_NODE) {
-                    add_common
                     deserialize_id_slow(buffer, buffer_index, ans.f);
+                    if (ans.g != INVALID_NODE) {
+                        deserialize_id_slow(buffer, buffer_index, ans.g);
+                    }
                 }
             }
         }
     }
-    add_break
+    buffer[buffer_index-1] = '\n';
 }
 
 void do_write_to_disk(int id) {
@@ -969,39 +1049,10 @@ void do_write_to_disk(int id) {
         now += total_answer_num_buffer_num;
     }
     head = process_answer_from[id]; tail = process_answer_from[id+1];
-    mod = (tail - head) % 10;
 
-#define def_write_to_disk_case(id) \
-    case id: \
-        deserialize_answer(ans, now, answer_all[head]); \
-        head ++;
-
-    switch (mod)
-    {
-    def_write_to_disk_case(9)
-    def_write_to_disk_case(8)
-    def_write_to_disk_case(7)
-    def_write_to_disk_case(6)
-    def_write_to_disk_case(5)
-    def_write_to_disk_case(4)
-    def_write_to_disk_case(3)
-    def_write_to_disk_case(2)
-    def_write_to_disk_case(1)    
-    default:
-        break;
-    }
     while (head < tail - 10) {
         deserialize_answer(ans, now, answer_all[head]);
-        deserialize_answer(ans, now, answer_all[head + 1]);
-        deserialize_answer(ans, now, answer_all[head + 2]);
-        deserialize_answer(ans, now, answer_all[head + 3]);
-        deserialize_answer(ans, now, answer_all[head + 4]);
-        deserialize_answer(ans, now, answer_all[head + 5]);
-        deserialize_answer(ans, now, answer_all[head + 6]);
-        deserialize_answer(ans, now, answer_all[head + 7]);
-        deserialize_answer(ans, now, answer_all[head + 8]);
-        deserialize_answer(ans, now, answer_all[head + 9]);
-        head += 10;
+        head ++;
     }
     deserialize_answer_slow(ans, now, answer_all[head]);
     deserialize_answer_slow(ans, now, answer_all[head + 1]);
@@ -1021,7 +1072,7 @@ void do_write_to_disk(int id) {
 
 void do_write() {
     total_answer_buffer_size = merge_answer();
-    printf("total ans: %d\n", total_answer_buffer_size);
+    // printf("total ans: %d\n", total_answer_buffer_size);
 
 
     int writer_fd = open(OUTPUT_PATH, O_RDWR | O_CREAT , 0666);
@@ -1059,23 +1110,7 @@ void do_write() {
 int main() {
     read_input();
 
-    filter_edges();
-
-    return 0;
-
-    printf("after read\n"); fflush(stdout);
-
-    printf("after filter\n"); fflush(stdout);
-    
-    build_edges();
-
-    printf("after build\n"); fflush(stdout);
-
-    topo_filter();
-
-    create_integer_buffer(); 
-
-    // return 0;
+    // topo_filter();
 
     pthread_t search_thr[4];
     pthread_create(search_thr + 0, NULL, search_0, NULL);
@@ -1084,12 +1119,13 @@ int main() {
     pthread_create(search_thr + 3, NULL, search_3, NULL);
 
     for (int i=0; i<4; ++i) pthread_join(search_thr[i], NULL);
+    // pthread_join(search_thr[0], NULL);
 
     // return 0;
 
     printf("total answer: %d\n", total_answer_num);
 
-    printf("after search\n"); fflush(stdout);
+    // printf("after search\n"); fflush(stdout);
 
     do_write();
 
@@ -1124,26 +1160,25 @@ int main() {
 
 
 
-
-
-void create_integer_buffer() {
-    int x, i=0, l, r;
+void create_integer_buffer_0() {
     if (data_rev_mapping[0] == 0) {
-        integer_buffer_size[0] = integer_buffer[0][0] = 1;
-        integer_buffer[0][1] = '0';
-        i ++;
-    }
-    for (; i<node_num; ++i) {
-        x = data_rev_mapping[i];
-        integer_buffer_size[i] = 1;
-        while (unlikely(x)) {
-            integer_buffer[i][integer_buffer_size[i] ++] = (x % 10) + '0';
-            x /= 10;
-        }
-        std::reverse(integer_buffer[i]+1, integer_buffer[i] + integer_buffer_size[i]);
-        integer_buffer[i][0] = -- integer_buffer_size[i];
-    }
+        integer_buffer_size[0] = integer_buffer[0][0] = 2;
+        integer_buffer[0][1] = '0'; integer_buffer[0][2] = ',';
+    } else create_integer_buffer_i(0);
 }
+
+void create_integer_buffer_i(int i) {
+    int x = data_rev_mapping[i];
+    integer_buffer_size[i] = 2;
+    integer_buffer[i][1] = ',';
+    while (unlikely(x)) {
+        integer_buffer[i][integer_buffer_size[i] ++] = (x % 10) + '0';
+        x /= 10;
+    }
+    std::reverse(integer_buffer[i]+1, integer_buffer[i] + integer_buffer_size[i]);
+    integer_buffer[i][0] = -- integer_buffer_size[i];
+}
+
 
 inline void deserialize_int(char* buffer, int& buffer_index, int x) {
     if (x == 0) {

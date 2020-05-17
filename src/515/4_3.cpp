@@ -80,20 +80,55 @@ void read_input() {
     printf("buf: %lld\n", buffer); fflush(stdout);
     
 
-    int x = 0;
+    int x = 0, mod, i=0;
     int* local_data = &data[0][0];
-    for (int i=0; i<size; ++i) {
-        if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) {
-            *local_data = x;
-            local_data ++;
-            x = 0;
-        } else if (buffer[i] >= '0' && buffer[i] <= '9') {
-            x = x * 10 + buffer[i] - '0';
-        }
+
+#define def_read_data_base \
+    if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) { \
+            *local_data = x; \
+            local_data ++; \
+            x = 0; \
+        } else if (buffer[i] >= '0' && buffer[i] <= '9') { \
+            x = x * 10 + buffer[i] - '0'; \
+        } \
+        i ++;
+
+#define def_read_data_case(id) \
+    case id: \
+        def_read_data_base
+
+    mod = size % 10;
+    switch (mod)
+    {
+    def_read_data_case(9)
+    def_read_data_case(8)
+    def_read_data_case(7)
+    def_read_data_case(6)
+    def_read_data_case(5)
+    def_read_data_case(4)
+    def_read_data_case(3)
+    def_read_data_case(2)
+    def_read_data_case(1)
+    default:
+        break;
+    }
+
+    while (i<size) {
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
     }
     data_num = (local_data - &data[0][0]) / 3;
-
+    
     printf("over\n"); fflush(stdout);
+
 
     std::unordered_map<int, int> hashmap;
     for (int i=0; i<data_num; ++i) {
@@ -110,17 +145,15 @@ void read_input() {
     }
 
     
-
+    
     std::sort(data_rev_mapping, data_rev_mapping + node_num);
 
     
-
-    for (int i=0; i<node_num; ++i) {
+    for (i=0; i<node_num; ++i) {
         hashmap[data_rev_mapping[i]] = i;
     }
 
-
-    for (int i=0; i<data_num; ++i) {
+    for (i=0; i<data_num; ++i) {
         data[i][0] = hashmap[data[i][0]];
         data[i][1] = hashmap[data[i][1]];
     }
@@ -1059,9 +1092,11 @@ void do_write() {
 int main() {
     read_input();
 
+    // return 0;
+
     filter_edges();
 
-    return 0;
+    
 
     printf("after read\n"); fflush(stdout);
 

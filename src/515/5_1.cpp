@@ -66,7 +66,46 @@ int CACHE_LINE_ALIGN data_num;
 int CACHE_LINE_ALIGN data_rev_mapping[MAX_NODE];
 int CACHE_LINE_ALIGN node_num = 0;
 
+int data_assign_mapper[MAX_NODE];
 
+struct Pair {
+    int x, ptr;
+};
+
+Pair pair_vec[MAX_NODE];
+
+
+void radix_sort() {
+    Pair* temp[16];
+    for (int i=0; i<16; ++i) {
+        temp[i] = (Pair*) malloc(sizeof(Pair) * node_num);
+    }
+
+    int size[16], i, j, total_size, counter = 0;
+    unsigned int mask = 15, index;
+    for (int out=0; out<8; ++out) {
+        for (i=0; i<16; ++i) size[i] = 0;
+        for (i=0; i<node_num; ++i) {
+            index = (mask & pair_vec[i].x) >> (4 * out);
+            temp[index][size[index] ++] = pair_vec[i];
+        }
+        total_size = 0;
+        for (i=0; i<16; ++i) {
+            for (j=0; j<size[i]; ++j) {
+                pair_vec[total_size ++] = temp[i][j];
+            }
+        }
+        counter = 0;
+        for (i=0; i<16; ++i) counter += size[i] == 0;
+        if (counter == 15) break;
+        mask <<= 8;
+    }
+
+
+    for (i=0; i<16; ++i) {
+        free(temp[i]);
+    }
+}
 
 void read_input() {
     int fd = open(INPUT_PATH, O_RDONLY);
@@ -80,49 +119,87 @@ void read_input() {
     printf("buf: %lld\n", buffer); fflush(stdout);
     
 
-    int x = 0;
+    int x = 0, mod, i=0;
     int* local_data = &data[0][0];
-    for (int i=0; i<size; ++i) {
-        if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) {
-            *local_data = x;
-            local_data ++;
-            x = 0;
-        } else if (buffer[i] >= '0' && buffer[i] <= '9') {
-            x = x * 10 + buffer[i] - '0';
-        }
+
+#define def_read_data_base \
+    if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) { \
+            *local_data = x; \
+            local_data ++; \
+            x = 0; \
+        } else if (buffer[i] >= '0' && buffer[i] <= '9') { \
+            x = x * 10 + buffer[i] - '0'; \
+        } \
+        i ++;
+
+#define def_read_data_case(id) \
+    case id: \
+        def_read_data_base
+
+    mod = size % 10;
+    switch (mod)
+    {
+    def_read_data_case(9)
+    def_read_data_case(8)
+    def_read_data_case(7)
+    def_read_data_case(6)
+    def_read_data_case(5)
+    def_read_data_case(4)
+    def_read_data_case(3)
+    def_read_data_case(2)
+    def_read_data_case(1)
+    default:
+        break;
+    }
+
+    while (i<size) {
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
     }
     data_num = (local_data - &data[0][0]) / 3;
-
+    
     printf("over\n"); fflush(stdout);
 
     std::unordered_map<int, int> hashmap;
-    for (int i=0; i<data_num; ++i) {
+    for (i=0; i<data_num; ++i) {
         x = data[i][0];
         if (hashmap.find(x) == hashmap.end()) {
             hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
+            data[i][0] = node_num;
+            pair_vec[node_num ++] = {x, node_num};
         }
         x = data[i][1];
         if (hashmap.find(x) == hashmap.end()) {
             hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
+            data[i][1] = node_num;
+            pair_vec[node_num ++] = {x, node_num};
         }
     }
 
+
+
+    // std::sort(pair_vec, pair_vec + node_num, [](Pair a, Pair b) {
+    //     return a.x < b.x;
+    // });
+
+    radix_sort();
     
-
-    std::sort(data_rev_mapping, data_rev_mapping + node_num);
-
-    
-
     for (int i=0; i<node_num; ++i) {
-        hashmap[data_rev_mapping[i]] = i;
+        data_rev_mapping[i] = pair_vec[i].x;
+        data_assign_mapper[pair_vec[i].ptr] = pair_vec[i].x;
     }
 
-
-    for (int i=0; i<data_num; ++i) {
-        data[i][0] = hashmap[data[i][0]];
-        data[i][1] = hashmap[data[i][1]];
+    for (i=0; i<data_num; ++i) {
+        data[i][0] = data_assign_mapper[data[i][0]];
+        data[i][1] = data_assign_mapper[data[i][1]];
     }
     munmap((void *)buffer, size);
     close(fd);
@@ -1059,9 +1136,11 @@ void do_write() {
 int main() {
     read_input();
 
+    return 0;
+
     filter_edges();
 
-    return 0;
+    // return 0;
 
     printf("after read\n"); fflush(stdout);
 

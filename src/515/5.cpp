@@ -66,7 +66,13 @@ int CACHE_LINE_ALIGN data_num;
 int CACHE_LINE_ALIGN data_rev_mapping[MAX_NODE];
 int CACHE_LINE_ALIGN node_num = 0;
 
+int data_assign_mapper[MAX_NODE];
 
+struct Pair {
+    int x, ptr;
+};
+
+Pair pair_vec[MAX_NODE];
 
 void read_input() {
     int fd = open(INPUT_PATH, O_RDONLY);
@@ -75,58 +81,98 @@ void read_input() {
         exit(0);
     }
     size_t size = lseek(fd, 0, SEEK_END);
-    printf("size: %d\n", (int) size); fflush(stdout);
+    // printf("size: %d\n", (int) size); fflush(stdout);
     char *buffer = (char*)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
-    printf("buf: %lld\n", buffer); fflush(stdout);
+    // printf("buf: %lld\n", buffer); fflush(stdout);
     
 
-    int x = 0;
+    int x = 0, mod, i=0;
     int* local_data = &data[0][0];
-    for (int i=0; i<size; ++i) {
-        if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) {
-            *local_data = x;
-            local_data ++;
-            x = 0;
-        } else if (buffer[i] >= '0' && buffer[i] <= '9') {
-            x = x * 10 + buffer[i] - '0';
-        }
+
+#define def_read_data_base \
+    if (unlikely(buffer[i] == ',' || buffer[i] == '\n' || i == size-1)) { \
+            *local_data = x; \
+            local_data ++; \
+            x = 0; \
+        } else if (buffer[i] >= '0' && buffer[i] <= '9') { \
+            x = x * 10 + buffer[i] - '0'; \
+        } \
+        i ++;
+
+#define def_read_data_case(id) \
+    case id: \
+        def_read_data_base
+
+    mod = size % 10;
+    switch (mod)
+    {
+    def_read_data_case(9)
+    def_read_data_case(8)
+    def_read_data_case(7)
+    def_read_data_case(6)
+    def_read_data_case(5)
+    def_read_data_case(4)
+    def_read_data_case(3)
+    def_read_data_case(2)
+    def_read_data_case(1)
+    default:
+        break;
+    }
+
+    while (i<size) {
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
+        def_read_data_base
     }
     data_num = (local_data - &data[0][0]) / 3;
-
-    printf("over\n"); fflush(stdout);
+    
+    // printf("over\n"); fflush(stdout);
 
     std::unordered_map<int, int> hashmap;
-    for (int i=0; i<data_num; ++i) {
+    for (i=0; i<data_num; ++i) {
         x = data[i][0];
         if (hashmap.find(x) == hashmap.end()) {
             hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
+            data[i][0] = node_num;
+            pair_vec[node_num] = {x, node_num};
+            node_num ++;
+        } else {
+            data[i][0] = hashmap[x];
         }
         x = data[i][1];
         if (hashmap.find(x) == hashmap.end()) {
             hashmap[x] = node_num;
-            data_rev_mapping[node_num ++] = x;
+            data[i][1] = node_num;
+            pair_vec[node_num] = {x, node_num};
+            node_num ++;
+        } else {
+            data[i][1] = hashmap[x];
         }
     }
 
+    std::sort(pair_vec, pair_vec + node_num, [](Pair a, Pair b) {
+        return a.x < b.x;
+    });
     
-
-    std::sort(data_rev_mapping, data_rev_mapping + node_num);
-
-    
-
     for (int i=0; i<node_num; ++i) {
-        hashmap[data_rev_mapping[i]] = i;
+        data_rev_mapping[i] = pair_vec[i].x;
+        data_assign_mapper[pair_vec[i].ptr] = i;
     }
 
-
-    for (int i=0; i<data_num; ++i) {
-        data[i][0] = hashmap[data[i][0]];
-        data[i][1] = hashmap[data[i][1]];
+    for (i=0; i<data_num; ++i) {
+        data[i][0] = data_assign_mapper[data[i][0]];
+        data[i][1] = data_assign_mapper[data[i][1]];
     }
     munmap((void *)buffer, size);
     close(fd);
-    printf("node num: %d\n", node_num);
+    // printf("node num: %d\n", node_num);
 }
 
 
@@ -138,12 +184,14 @@ void read_input() {
 int useful_edge_num = 0;
 
 void value_filter() {
+    // printf("into value filter: %d\n", node_num); fflush(stdout);
     int* malloc_all = (int*) malloc(sizeof(int) * node_num * 4);
     memset(malloc_all, -1, sizeof(malloc_all));
 
     int u, v, x, *u_ptr, *v_ptr;
     for (int i=0; i<data_num; ++i) {
         u = data[i][0]; v = data[i][1]; x = data[i][2];
+        // printf("uv %d %d %d\n", u, v, x); fflush(stdout);
         u_ptr = malloc_all + (u << 2);
         v_ptr = malloc_all + (v << 2);
         if (u_ptr[2] == -1) {
@@ -176,6 +224,7 @@ void value_filter() {
     }
 
     free(malloc_all);
+    // printf("out value filter: %d\n", node_num); fflush(stdout);
 }
 
 void filter_edges() {
@@ -863,7 +912,7 @@ int merge_answer() {
     def_merge_answer_for(3)
     def_merge_answer_for(4)
 
-    printf("after merge now: %d\n", now);
+    // printf("after merge now: %d\n", now);
 
     for (int i=0; i<total_answer_num; ++i) {
         total_size += answer_all[i].size;
@@ -1021,7 +1070,7 @@ void do_write_to_disk(int id) {
 
 void do_write() {
     total_answer_buffer_size = merge_answer();
-    printf("total ans: %d\n", total_answer_buffer_size);
+    // printf("total ans: %d\n", total_answer_buffer_size);
 
 
     int writer_fd = open(OUTPUT_PATH, O_RDWR | O_CREAT , 0666);
@@ -1059,17 +1108,19 @@ void do_write() {
 int main() {
     read_input();
 
+    // return 0;
+
     filter_edges();
 
-    return 0;
+    // return 0;
 
-    printf("after read\n"); fflush(stdout);
+    // printf("after read\n"); fflush(stdout);
 
-    printf("after filter\n"); fflush(stdout);
+    // printf("after filter\n"); fflush(stdout);
     
     build_edges();
 
-    printf("after build\n"); fflush(stdout);
+    // printf("after build\n"); fflush(stdout);
 
     topo_filter();
 
@@ -1087,9 +1138,9 @@ int main() {
 
     // return 0;
 
-    printf("total answer: %d\n", total_answer_num);
+    // printf("total answer: %d\n", total_answer_num);
 
-    printf("after search\n"); fflush(stdout);
+    // printf("after search\n"); fflush(stdout);
 
     do_write();
 
